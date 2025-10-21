@@ -1,16 +1,28 @@
-# 🎮 Japanese Tutor - RetroArch Screenshot Watcher
+# 🎮 Japanese Tutor - Screenshot Translation & Learning Agent
 
-An intelligent agent that watches your RetroArch screenshots folder and automatically provides Japanese translations and learning assistance using Claude.
+An intelligent agent system that helps you learn Japanese through game screenshots with two modes:
+
+1. **Screenshot Watcher** (Existing): Real-time translation of RetroArch screenshots
+2. **Learning Agent** (NEW): MCP server with vocabulary tracking and flashcard reviews
 
 Based on the [agentic drop zones pattern](https://github.com/disler/agentic-drop-zones) by disler.
 
 ## 🌟 Features
 
+### Screenshot Watcher (Existing)
 - **Automatic Detection**: Watches your RetroArch screenshots folder for new images
 - **Instant Translation**: Automatically translates Japanese text in screenshots
 - **Learning Support**: Provides readings (furigana/romaji), grammar notes, and vocabulary
 - **Context Awareness**: Explains what's happening in the game
 - **Always-On Assistant**: Runs in the background, ready whenever you take a screenshot
+
+### Learning Agent (NEW - MCP Server)
+- **Hybrid OCR**: Claude Vision API + manga-ocr for accurate text extraction
+- **Vocabulary Tracking**: Automatic vocabulary database with study status (new/learning/known)
+- **Flashcard System**: SM-2 spaced repetition algorithm for optimal learning
+- **Learning Statistics**: Track progress, encounter counts, review performance
+- **MCP Integration**: Works with Claude Desktop and other MCP clients
+- **Offline Capable**: Local OCR and dictionary (manga-ocr + jamdict)
 
 ## 📋 Prerequisites
 
@@ -65,7 +77,9 @@ In RetroArch:
 
 ## 🎯 Usage
 
-### Start the Watcher
+### Mode 1: Screenshot Watcher (Real-time Translation)
+
+#### Start the Watcher
 
 ```bash
 python screenshot_watcher.py
@@ -118,6 +132,102 @@ Waiting for new screenshots...
 ...
 ============================================================
 ```
+
+### Mode 2: Learning Agent (MCP Server)
+
+The Learning Agent extends the screenshot watcher with vocabulary tracking and flashcard reviews.
+
+#### Setup MCP Server
+
+1. **Install dependencies** (includes manga-ocr, jamdict, etc.):
+```bash
+cd D:\source\Cernji-Agents\apps\japanese-tutor
+uv pip install -r requirements.txt
+```
+
+2. **Download dictionary data** (required for offline lookups):
+```bash
+python -c "import jamdict; jamdict.Jamdict()"
+```
+This downloads ~100MB of JMDict data on first run.
+
+3. **Start the MCP server**:
+```bash
+uv run japanese_agent.py
+```
+
+For HTTP server mode (production):
+```bash
+uv run japanese_agent.py --transport streamable-http --port 8080
+```
+
+4. **Configure Claude Desktop** to connect to the MCP server.
+
+Add to your `claude_desktop_config.json`:
+```json
+{
+  "mcpServers": {
+    "japanese-agent": {
+      "command": "uv",
+      "args": ["run", "D:\\source\\Cernji-Agents\\apps\\japanese-tutor\\japanese_agent.py"],
+      "transport": "stdio"
+    }
+  }
+}
+```
+
+#### Using MCP Tools in Claude Desktop
+
+Once configured, you can use these tools in Claude Desktop conversations:
+
+**Analyze screenshots:**
+```
+Please analyze this screenshot: C:\path\to\screenshot.png
+```
+
+**List vocabulary by status:**
+```
+Show me all new vocabulary words
+Show me words I'm currently learning
+```
+
+**Get learning statistics:**
+```
+Show my Japanese learning progress
+```
+
+**Review flashcards:**
+```
+Let's review some flashcards
+```
+
+**Search vocabulary:**
+```
+Find the word "ポケモン" in my vocabulary
+```
+
+#### Available MCP Tools
+
+- `analyze_screenshot(image_path)` - Extract and analyze Japanese text
+- `get_vocabulary(vocab_id)` - Get vocabulary entry
+- `list_vocabulary(status_filter, limit)` - List vocabulary by status
+- `update_vocab_status(vocab_id, status)` - Update study status
+- `search_vocabulary(query)` - Search vocabulary
+- `get_vocab_stats()` - Get learning statistics
+- `create_flashcard(vocab_id, screenshot_id)` - Create flashcard
+- `get_due_flashcards(limit)` - Get due flashcards
+- `update_flashcard_review(flashcard_id, rating)` - Record review
+- `get_review_stats()` - Get review statistics
+
+#### Slash Commands
+
+You can also use slash commands directly in Claude Code:
+
+- `/japanese:analyze` - Analyze screenshot
+- `/japanese:vocab-list` - List vocabulary
+- `/japanese:vocab-stats` - Show statistics
+- `/japanese:review` - Start flashcard review
+- `/japanese:flashcards` - Manage flashcards
 
 ## ⚙️ Configuration
 

@@ -1,3 +1,15 @@
+#!/usr/bin/env python3
+# /// script
+# requires-python = ">=3.11"
+# dependencies = [
+#     "claude-code-sdk",
+#     "watchdog",
+#     "pyyaml",
+#     "python-dotenv",
+#     "rich",
+# ]
+# ///
+
 """
 Japanese Tutor Screenshot Watcher
 An agentic drop zone that monitors RetroArch screenshots and provides Japanese translations.
@@ -7,24 +19,30 @@ Based on the agentic drop zones pattern by disler.
 import os
 import sys
 import time
-import base64
+import asyncio
 from pathlib import Path
-from typing import List, Dict, Any
+from typing import Dict, Any
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler, FileCreatedEvent
-import anthropic
+from claude_code_sdk import ClaudeSDKClient, ClaudeCodeOptions
+from dotenv import load_dotenv
+from rich.console import Console
+from rich.panel import Panel
+from rich.text import Text
 import yaml
+
+# Initialize Rich console for better output
+console = Console()
 
 
 class ScreenshotHandler(FileSystemEventHandler):
     """Handles new screenshot files and triggers Japanese translation."""
-    
-    def __init__(self, config: Dict[str, Any], prompt_template: str):
+
+    def __init__(self, config: Dict[str, Any]):
         self.config = config
-        self.prompt_template = prompt_template
-        self.client = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
         self.file_patterns = config.get('file_patterns', ['*.png', '*.jpg', '*.jpeg'])
         self.processed_files = set()
+        self.slash_command_path = Path(".claude/commands/japanese/analyze.md")
         
     def matches_pattern(self, filename: str) -> bool:
         """Check if filename matches any of the configured patterns."""
@@ -34,73 +52,88 @@ class ScreenshotHandler(FileSystemEventHandler):
                 if filename.lower().endswith(extension):
                     return True
         return False
-    
-    def encode_image(self, image_path: str) -> tuple[str, str]:
-        """Encode image to base64 and determine media type."""
-        with open(image_path, "rb") as image_file:
-            image_data = base64.standard_b64encode(image_file.read()).decode("utf-8")
-        
-        # Determine media type based on file extension
-        ext = Path(image_path).suffix.lower()
-        media_type_map = {
-            '.png': 'image/png',
-            '.jpg': 'image/jpeg',
-            '.jpeg': 'image/jpeg',
-        }
-        media_type = media_type_map.get(ext, 'image/png')
-        
-        return image_data, media_type
-    
-    def process_screenshot(self, file_path: str):
-        """Process a screenshot with Claude for Japanese translation."""
+
+    def load_slash_command(self, file_path: str) -> str:
+        """Load slash command content and replace $ARGUMENTS placeholder."""
+        if not self.slash_command_path.exists():
+            raise FileNotFoundError(f"Slash command not found: {self.slash_command_path}")
+
+        # Load the slash command content
+        prompt_content = self.slash_command_path.read_text(encoding='utf-8')
+
+        # Replace $ARGUMENTS placeholder with the file path
+        if "$ARGUMENTS" in prompt_content:
+            prompt_content = prompt_content.replace("$ARGUMENTS", file_path)
+
+        return prompt_content
+
+    async def process_screenshot_async(self, file_path: str):
+        """Process a screenshot using Claude Code SDK (async)."""
         try:
-            print(f"\n{'='*60}")
-            print(f"📸 New screenshot detected: {Path(file_path).name}")
-            print(f"{'='*60}\n")
-            
-            # Encode the image
-            image_data, media_type = self.encode_image(file_path)
-            
-            # Prepare the prompt (replace FILE_PATH placeholder)
-            prompt = self.prompt_template.replace("{{FILE_PATH}}", file_path)
-            
-            # Create message with image
-            message = self.client.messages.create(
-                model=self.config.get('model', 'claude-sonnet-4-20250514'),
-                max_tokens=2000,
-                messages=[
-                    {
-                        "role": "user",
-                        "content": [
-                            {
-                                "type": "image",
-                                "source": {
-                                    "type": "base64",
-                                    "media_type": media_type,
-                                    "data": image_data,
-                                },
-                            },
-                            {
-                                "type": "text",
-                                "text": prompt
-                            }
-                        ],
-                    }
-                ],
+            console.print(f"\n[bold cyan]{'='*60}[/bold cyan]")
+            console.print(f"[green]📸 New screenshot detected:[/green] {Path(file_path).name}")
+            console.print(f"[bold cyan]{'='*60}[/bold cyan]\n")
+
+            # Load the slash command content
+            console.print(f"[dim]   Loading slash command: {self.slash_command_path}[/dim]")
+            full_prompt = self.load_slash_command(file_path)
+
+            # Create SDK client options
+            options = ClaudeCodeOptions(
+                permission_mode="bypassPermissions",  # Auto-approve tool calls
+                model=self.config.get('model', 'sonnet')
             )
-            
-            # Print the response
-            print("🤖 Claude's Response:")
-            print("-" * 60)
-            for block in message.content:
-                if block.type == "text":
-                    print(block.text)
-            print("\n" + "="*60 + "\n")
-            
+
+            console.print(f"[cyan]ℹ️  Processing with Claude Code SDK...[/cyan]")
+            console.print(f"[dim]   Model: {self.config.get('model', 'sonnet')}[/dim]\n")
+
+            # Process with Claude Code SDK
+            async with ClaudeSDKClient(options=options) as client:
+                await client.query(full_prompt)
+
+                # Stream response
+                has_response = False
+                async for message in client.receive_response():
+                    if hasattr(message, "content"):
+                        for block in message.content:
+                            if hasattr(block, "text") and block.text.strip():
+                                has_response = True
+                                # Output in styled panel
+                                console.print(
+                                    Panel(
+                                        Text(block.text),
+                                        title="[bold cyan]🤖 Claude Code • Japanese Tutor[/bold cyan]",
+                                        subtitle=f"[dim]{Path(file_path).name}[/dim]",
+                                        border_style="cyan",
+                                        expand=False,
+                                        padding=(1, 2),
+                                    )
+                                )
+
+                # If no response received
+                if not has_response:
+                    console.print(
+                        Panel(
+                            Text("[yellow]No response received[/yellow]"),
+                            title="[bold yellow]🤖 Claude Code • Japanese Tutor[/bold yellow]",
+                            subtitle=f"[dim]{Path(file_path).name}[/dim]",
+                            border_style="yellow",
+                            expand=False,
+                            padding=(1, 2),
+                        )
+                    )
+
+            console.print()
+
         except Exception as e:
-            print(f"❌ Error processing screenshot: {e}")
+            console.print(f"[bold red]❌ Error processing screenshot: {e}[/bold red]")
             import traceback
             traceback.print_exc()
+
+    def process_screenshot(self, file_path: str):
+        """Process a screenshot (sync wrapper for async method)."""
+        # Bridge from sync watchdog handler to async SDK call
+        asyncio.run(self.process_screenshot_async(file_path))
     
     def on_created(self, event: FileCreatedEvent):
         """Called when a file is created in the monitored directory."""
@@ -133,54 +166,52 @@ def load_config(config_path: str = "config.yaml") -> Dict[str, Any]:
         return yaml.safe_load(f)
 
 
-def load_prompt_template(prompt_path: str) -> str:
-    """Load prompt template from file."""
-    with open(prompt_path, 'r', encoding='utf-8') as f:
-        return f.read()
-
-
 def main():
     """Main entry point for the screenshot watcher."""
-    print("🎮 Japanese Tutor Screenshot Watcher")
-    print("Monitoring RetroArch screenshots for Japanese translation...\n")
-    
+    # Load environment variables from .env file
+    load_dotenv()
+
+    console.print("[bold cyan]🎮 Japanese Tutor Screenshot Watcher[/bold cyan]")
+    console.print("Monitoring RetroArch screenshots for Japanese translation...\n")
+
     # Check for API key
     if not os.environ.get("ANTHROPIC_API_KEY"):
-        print("❌ Error: ANTHROPIC_API_KEY environment variable not set!")
-        print("Please set it with: set ANTHROPIC_API_KEY=your_key_here")
+        console.print("[bold red]❌ Error: ANTHROPIC_API_KEY environment variable not set![/bold red]")
+        console.print("[yellow]Please set it in .env file or environment:[/yellow]")
+        console.print("[dim]  Option 1: Create/update .env file with: ANTHROPIC_API_KEY=your_key_here[/dim]")
+        console.print("[dim]  Option 2: Set environment variable: set ANTHROPIC_API_KEY=your_key_here[/dim]")
         sys.exit(1)
-    
+
     # Load configuration
     try:
         config = load_config("config.yaml")
     except FileNotFoundError:
-        print("❌ Error: config.yaml not found!")
-        print("Please create a config.yaml file with your settings.")
+        console.print("[bold red]❌ Error: config.yaml not found![/bold red]")
+        console.print("[yellow]Please create a config.yaml file with your settings.[/yellow]")
         sys.exit(1)
-    
-    # Load prompt template
-    prompt_path = config.get('prompt_template', 'prompts/japanese_tutor.md')
-    try:
-        prompt_template = load_prompt_template(prompt_path)
-    except FileNotFoundError:
-        print(f"❌ Error: Prompt template not found at {prompt_path}")
+
+    # Verify slash command exists
+    slash_command_path = Path(".claude/commands/japanese/analyze.md")
+    if not slash_command_path.exists():
+        console.print(f"[bold red]❌ Error: Slash command not found at {slash_command_path}[/bold red]")
+        console.print("[yellow]Please ensure the Japanese tutor slash command is installed.[/yellow]")
         sys.exit(1)
-    
+
     # Get the screenshot directory to monitor
     screenshot_dir = config.get('screenshot_dir')
     if not screenshot_dir or not os.path.exists(screenshot_dir):
-        print(f"❌ Error: Screenshot directory not found: {screenshot_dir}")
-        print("Please set 'screenshot_dir' in config.yaml to your RetroArch screenshots folder")
+        console.print(f"[bold red]❌ Error: Screenshot directory not found: {screenshot_dir}[/bold red]")
+        console.print("[yellow]Please set 'screenshot_dir' in config.yaml to your RetroArch screenshots folder[/yellow]")
         sys.exit(1)
-    
-    print(f"📁 Monitoring directory: {screenshot_dir}")
-    print(f"📝 Using prompt template: {prompt_path}")
-    print(f"🤖 Model: {config.get('model', 'claude-sonnet-4-20250514')}")
-    print(f"📋 File patterns: {config.get('file_patterns', ['*.png', '*.jpg'])}")
-    print("\nWaiting for new screenshots...\n")
-    
+
+    console.print(f"[green]📁 Monitoring directory:[/green] {screenshot_dir}")
+    console.print(f"[green]📝 Using slash command:[/green] {slash_command_path}")
+    console.print(f"[green]🤖 Model:[/green] {config.get('model', 'sonnet')}")
+    console.print(f"[green]📋 File patterns:[/green] {config.get('file_patterns', ['*.png', '*.jpg'])}")
+    console.print("\n[cyan]Waiting for new screenshots...[/cyan]\n")
+
     # Create event handler and observer
-    event_handler = ScreenshotHandler(config, prompt_template)
+    event_handler = ScreenshotHandler(config)
     observer = Observer()
     observer.schedule(event_handler, screenshot_dir, recursive=False)
     
@@ -191,11 +222,11 @@ def main():
         while True:
             time.sleep(1)
     except KeyboardInterrupt:
-        print("\n\n🛑 Stopping screenshot watcher...")
+        console.print("\n\n[bold red]🛑 Stopping screenshot watcher...[/bold red]")
         observer.stop()
-    
+
     observer.join()
-    print("👋 Goodbye!")
+    console.print("[bold cyan]👋 Goodbye![/bold cyan]")
 
 
 if __name__ == "__main__":
