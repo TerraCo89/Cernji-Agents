@@ -8,7 +8,7 @@
             "npx",
             "-y",
             "mcp-sqlite",
-            "data\\japanese_agent.db"
+            "D:\\source\\Cernji-Agents\\data\\japanese_agent.db"
         ]
     }
   }
