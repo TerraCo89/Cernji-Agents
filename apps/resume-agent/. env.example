@@ -1,0 +1,21 @@
+# Resume Agent Configuration
+
+# Storage Backend
+# Options: sqlite, file
+# Default: sqlite
+STORAGE_BACKEND=sqlite
+
+# SQLite Database Path
+# Path to the SQLite database file
+# Default: ../../data/resume_agent.db (relative to apps/resume-agent/)
+SQLITE_DATABASE_PATH=../../data/resume_agent.db
+
+# User ID
+# For multi-user support
+# Default: default
+USER_ID=default
+
+# MCP Server Configuration
+# Port for HTTP Streamable transport (optional)
+# Default: 8080
+# MCP_PORT=8080

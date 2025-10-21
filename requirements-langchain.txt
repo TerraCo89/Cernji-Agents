@@ -1,0 +1,39 @@
+# LangChain/LangGraph Resume Agent Dependencies
+# Install with: pip install -r requirements-langchain.txt
+
+# Core LangChain
+langchain>=0.1.0
+langchain-core>=0.1.0
+langchain-community>=0.0.20
+
+# LangGraph for multi-agent orchestration
+langgraph>=0.0.20
+
+# LLM Providers
+langchain-anthropic>=0.1.0  # Claude
+langchain-openai>=0.0.5     # OpenAI (for embeddings)
+
+# Vector Stores
+faiss-cpu>=1.7.4            # Or faiss-gpu for GPU support
+
+# Document Processing
+beautifulsoup4>=4.12.0      # For web scraping
+httpx>=0.25.0               # Async HTTP client
+
+# Data Validation (already in base project)
+pydantic>=2.0.0
+pydantic-settings>=2.0.0
+
+# Configuration
+python-dotenv>=1.0.0
+
+# YAML Support (already in base project)
+pyyaml>=6.0
+
+# Optional: Production Features
+# langsmith>=0.0.70         # Tracing and monitoring
+# langserve>=0.0.30         # REST API deployment
+
+# Development
+pytest>=7.4.0
+pytest-asyncio>=0.21.0
