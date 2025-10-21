@@ -1,4 +1,4 @@
-# Career Application Assistant
+﻿# Career Application Assistant
 
 ## Purpose
 This project helps me tailor resumes and generate cover letters for job applications using AI agents.
@@ -9,17 +9,31 @@ This project helps me tailor resumes and generate cover letters for job applicat
 
 **Start the MCP server:**
 ```bash
-uv run resume_agent.py
+uv run apps/resume-agent/resume_agent.py
 ```
 
 Then configure Claude Desktop (see [QUICKSTART.md](QUICKSTART.md))
 
 ## Project Structure
 
-### MCP Server
-- **[resume_agent.py](resume_agent.py)** - Single-file MCP server (UV + FastMCP + Claude Agent SDK)
-- **Tech Stack**: Python 3.10+, UV (Astral), FastMCP 2.0, Claude Agent SDK
-- **Transport**: HTTP Streamable (port 8080)
+**Architecture**: Multi-app monorepo with isolated applications in `apps/` directory
+
+### Applications
+
+- **[apps/resume-agent/](apps/resume-agent/)** - Career application MCP server
+  - Single-file MCP server (UV + FastMCP + Claude Agent SDK)
+  - Tech Stack: Python 3.10+, UV (Astral), FastMCP 2.0, Claude Agent SDK
+  - Transport: HTTP Streamable (port 8080)
+
+- **[apps/observability-server/](apps/observability-server/)** - Event tracking server
+  - Real-time event collection via HTTP POST
+  - WebSocket broadcasting to connected clients
+  - Tech Stack: Bun, TypeScript, SQLite (WAL mode)
+
+- **[apps/client/](apps/client/)** - Web dashboard for observability
+  - Real-time event monitoring
+  - Filter by app, session, event type
+  - Tech Stack: Vue 3, Vite, TailwindCSS
 
 ### Documentation
 - **[QUICKSTART.md](QUICKSTART.md)** - Get started in 5 minutes
@@ -34,12 +48,13 @@ Then configure Claude Desktop (see [QUICKSTART.md](QUICKSTART.md))
 - **Portfolio Matrix**: `./portfolio_matrix_*.json`
 
 ### Agent Prompts
-Located in `.claude/agents/`:
+Located in `apps/resume-agent/.claude/agents/`:
 - `data-access-agent.md` - **Centralized data access layer** (ALL file I/O)
 - `job-analyzer.md` - Job posting analysis (data-agnostic)
 - `resume-writer.md` - Resume tailoring (data-agnostic)
 - `cover-letter-writer.md` - Cover letter generation (data-agnostic)
 - `portfolio-finder.md` - GitHub portfolio search (data-agnostic)
+- `career-enhancer.md` - Career improvement suggestions
 
 ### Slash Commands (Direct CLI Usage)
 

@@ -1,3 +1,7 @@
+/**
+ * Adapted from Disler's Multi-Agent Observability reference implementation
+ * Source: https://github.com/disler/claude-code-hooks-multi-agent-observability
+ */
 import { initDatabase, insertEvent, getFilterOptions, getRecentEvents, updateEventHITLResponse } from './db';
 import type { HookEvent, HumanInTheLoopResponse } from './types';
 import { 

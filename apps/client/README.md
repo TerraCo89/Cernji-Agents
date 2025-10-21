@@ -1,5 +1,234 @@
-# Vue 3 + TypeScript + Vite
+# Observability Web Client
 
-This template should help get you started developing with Vue 3 and TypeScript in Vite. The template uses Vue 3 `<script setup>` SFCs, check out the [script setup docs](https://v3.vuejs.org/api/sfc-script-setup.html#sfc-script-setup) to learn more.
+Real-time dashboard for monitoring agent activities across all applications.
 
-Learn more about the recommended Project Setup and IDE Support in the [Vue Docs TypeScript Guide](https://vuejs.org/guide/typescript/overview.html#project-setup).
+## Overview
+
+The Observability Web Client provides a real-time dashboard for monitoring events from all agents. It connects to the observability server via WebSocket and displays events as they occur, with filtering capabilities by app, session, and event type.
+
+## Features
+
+- **Real-time Updates**: Events appear instantly via WebSocket connection
+- **Event Filtering**: Filter by source app, session ID, or event type
+- **Session Timeline**: View all events in a session chronologically
+- **AI Summaries**: Display AI-generated summaries of tool usage
+- **Connection Status**: Visual indicator of WebSocket connection health
+- **Auto-reconnect**: Automatically reconnects on connection loss
+
+## Quick Start
+
+### Prerequisites
+
+- Bun runtime (https://bun.sh)
+- Observability Server running on port 4000
+
+### Installation
+
+```bash
+cd apps/client
+bun install
+```
+
+### Running
+
+```bash
+# Development with hot reload
+bun run dev
+
+# Production build
+bun run build
+
+# Preview production build
+bun run preview
+```
+
+The client will be available at http://localhost:5173
+
+## Usage
+
+1. **Start the observability server**: Ensure the server is running on port 4000
+2. **Open the dashboard**: Navigate to http://localhost:5173
+3. **Wait for connection**: Status should show "Connected" in green
+4. **Run commands**: Use Claude Desktop to run commands - events will appear automatically
+5. **Filter events**: Use the filter controls to narrow down the event list
+
+## Architecture
+
+- **Framework**: Vue 3 (Composition API)
+- **Build Tool**: Vite
+- **Styling**: TailwindCSS
+- **Transport**: WebSocket for real-time updates
+- **URL**: http://localhost:5173
+
+## Project Structure
+
+```
+apps/client/
+├── src/
+│   ├── App.vue                      # Main application component
+│   ├── main.ts                      # Application entry point
+│   ├── components/
+│   │   ├── EventList.vue            # Event list component
+│   │   ├── EventFilter.vue          # Filter controls
+│   │   └── ConnectionStatus.vue     # Connection indicator
+│   └── composables/
+│       └── useWebSocket.ts          # WebSocket connection logic
+├── index.html
+├── package.json
+├── vite.config.ts
+├── tailwind.config.js
+└── README.md
+```
+
+## Components
+
+### App.vue
+Main application component that orchestrates the dashboard layout and data flow.
+
+### EventList.vue
+Displays events in a scrollable list with formatting for different event types.
+
+### EventFilter.vue
+Provides UI controls for filtering events by app, session, and type.
+
+### ConnectionStatus.vue
+Shows WebSocket connection status with auto-reconnect indicator.
+
+### useWebSocket.ts
+Composable for managing WebSocket connection, reconnection logic, and event streaming.
+
+## Event Display Format
+
+Each event shows:
+- **Timestamp**: When the event occurred
+- **Source App**: Which application generated the event
+- **Event Type**: PreToolUse, PostToolUse, UserPromptSubmit, etc.
+- **Tool Name**: Name of the tool being used (if applicable)
+- **Summary**: AI-generated summary of the action
+- **Session ID**: UUID for grouping related events
+
+## WebSocket Connection
+
+The client connects to `ws://localhost:4000/stream` and:
+- Automatically reconnects with 3-second delay on disconnect
+- Shows connection status in the UI
+- Queues events received during reconnection
+- Maintains event history in local state
+
+## Development
+
+### Adding a New Event Type
+
+1. Update the event type list in `App.vue`:
+```typescript
+const eventTypes = ref(['PreToolUse', 'PostToolUse', 'YourNewType']);
+```
+
+2. Add styling for the new type in `EventList.vue`:
+```vue
+<div :class="getEventTypeClass(event.hook_event_type)">
+  <!-- Event content -->
+</div>
+```
+
+### Customizing Filters
+
+Filters are reactive and automatically update the displayed events. To add a new filter:
+
+1. Add state in `App.vue`:
+```typescript
+const newFilter = ref('');
+```
+
+2. Add computed property to filter events:
+```typescript
+const filteredEvents = computed(() => {
+  return events.value.filter(e => e.someField === newFilter.value);
+});
+```
+
+3. Add UI control in `EventFilter.vue`
+
+## Configuration
+
+The client uses environment variables for configuration:
+
+Create `.env.local` (optional):
+```env
+VITE_WEBSOCKET_URL=ws://localhost:4000/stream
+VITE_API_URL=http://localhost:4000
+```
+
+Defaults are sensible for local development.
+
+## Integration
+
+### With Observability Server (../observability-server/)
+Connects via WebSocket to receive real-time event broadcasts.
+
+### With Claude Desktop
+Displays events generated by hooks when using Claude Desktop with MCP servers.
+
+### Event Flow
+```
+User runs command → Hook sends event → Server stores & broadcasts → Client displays
+```
+
+## Testing
+
+### Manual Testing
+
+1. Start observability server
+2. Start web client
+3. Open browser to http://localhost:5173
+4. Use Claude Desktop to run a command
+5. Verify events appear in real-time
+
+### WebSocket Testing
+
+```javascript
+// Test WebSocket connection in browser console
+const ws = new WebSocket('ws://localhost:4000/stream');
+ws.onopen = () => console.log('Connected');
+ws.onmessage = (e) => console.log('Event:', JSON.parse(e.data));
+ws.onerror = (e) => console.error('Error:', e);
+```
+
+## Troubleshooting
+
+### Connection fails
+**Symptom**: Dashboard shows "Disconnected" in red
+**Solutions**:
+1. Verify observability server is running: `curl http://localhost:4000/events/recent`
+2. Check browser console for errors
+3. Ensure no CORS issues (server should allow all origins)
+4. Restart both server and client
+
+### Events not appearing
+**Symptom**: Connected but no events showing
+**Solutions**:
+1. Check filter settings - reset all filters
+2. Verify hooks are configured in `.claude/settings.json`
+3. Test event submission manually:
+   ```bash
+   curl -X POST http://localhost:4000/events \
+     -H "Content-Type: application/json" \
+     -d '{"timestamp":1234567890,"source_app":"test","session_id":"123","hook_event_type":"PreToolUse","payload":{}}'
+   ```
+4. Check server logs for incoming events
+
+### Port 5173 already in use
+```powershell
+# Kill process using port 5173
+Get-NetTCPConnection -LocalPort 5173 | Select-Object -ExpandProperty OwningProcess | Stop-Process -Force
+```
+
+## Attribution
+
+Adapted from [Disler's Multi-Agent Observability](https://github.com/disler/claude-code-hooks-multi-agent-observability)
+
+## Related Documentation
+
+- [../../README.md](../../README.md) - Project overview
+- [../observability-server/README.md](../observability-server/README.md) - Server documentation
+- [../../.claude/hooks/](../../.claude/hooks/) - Hook scripts configuration

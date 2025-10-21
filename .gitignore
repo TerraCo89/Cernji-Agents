@@ -111,3 +111,6 @@ dmypy.json
 
 # MCP Server runtime
 mcp_server.log
+
+# Temporary reference repository
+temp-observability-reference/

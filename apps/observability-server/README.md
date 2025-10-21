@@ -1,101 +1,79 @@
 # Observability Server
 
-Real-time event tracking server for multi-agent monitoring.
+Real-time event tracking and broadcasting server for multi-agent observability.
 
 ## Overview
 
-This server captures, stores, and broadcasts Claude Code hook events in real-time. It provides:
-- HTTP POST endpoint for receiving events from Claude Code hooks
-- SQLite database for event persistence
-- WebSocket server for broadcasting events to connected clients
-- RESTful API for querying historical events
+The Observability Server collects events from all apps (via hooks) and broadcasts them to connected clients via WebSocket. It provides a centralized observability system for monitoring agent activities in real-time.
 
-**Based on**: Disler's [Multi-Agent Observability](https://github.com/disler/claude-code-hooks-multi-agent-observability) pattern
+## Features
 
-## Architecture
-
-- **Runtime**: Bun (fast JavaScript/TypeScript runtime)
-- **Language**: TypeScript
-- **Database**: SQLite with WAL mode
-- **Transport**: HTTP REST + WebSocket
-- **Port**: 4000 (default)
+- **Event Collection**: HTTP POST endpoint for receiving events from hooks
+- **Real-time Broadcasting**: WebSocket streaming to connected clients
+- **SQLite Storage**: Events stored in `../../data/events.db` with WAL mode
+- **Session Tracking**: Events grouped by session ID for debugging workflows
+- **AI Summaries**: Optional AI-generated summaries of tool usage
 
 ## Quick Start
 
 ### Prerequisites
 
-- [Bun](https://bun.sh/) installed (`curl -fsSL https://bun.sh/install | bash`)
+- Bun runtime (https://bun.sh)
 
 ### Installation
 
-1. **Install dependencies**:
-   ```bash
-   cd apps/observability-server
-   bun install
-   ```
+```bash
+cd apps/observability-server
+bun install
+```
 
-2. **Run the server**:
-   ```bash
-   # Development mode (with hot reload)
-   bun run dev
+### Running
 
-   # Production mode
-   bun run start
-   ```
+```bash
+# Development with hot reload
+bun run dev
 
-3. **Verify server is running**:
-   ```bash
-   curl http://localhost:4000/health
-   # Should return: {"status":"ok"}
-   ```
+# Production
+bun run start
+```
+
+The server will start on http://localhost:4000
 
 ## API Endpoints
 
-### Health Check
-```
-GET /health
-```
-Returns server health status.
+### POST /events
 
-### Submit Event
-```
-POST /events
-Content-Type: application/json
+Submit an event for storage and broadcasting.
 
+**Request Body**:
+```json
 {
+  "timestamp": 1234567890,
   "source_app": "resume-agent",
-  "session_id": "session-123",
+  "session_id": "uuid-v4",
   "hook_event_type": "PreToolUse",
-  "payload": {
-    "tool_name": "Read",
-    "tool_input": { "file_path": "README.md" }
-  },
-  "ai_summary": "Reading README file"
+  "payload": {},
+  "ai_summary": "Optional AI summary"
 }
 ```
 
-### Get Recent Events
-```
-GET /events/recent?limit=50&source_app=resume-agent&session_id=session-123
-```
+**Response**: `200 OK`
 
-Query Parameters:
-- `limit` (default: 100) - Number of events to return
-- `source_app` - Filter by source application
-- `session_id` - Filter by session ID
-- `hook_event_type` - Filter by event type
+### WebSocket /stream
 
-### Get Filter Options
-```
-GET /events/filter-options
-```
-Returns available values for filtering (apps, sessions, event types).
+Subscribe to real-time event stream.
 
-### WebSocket Stream
-```
-WS /stream
-```
-Real-time event broadcasting to all connected clients.
+**Connection**: `ws://localhost:4000/stream`
+
+**Messages**: JSON event objects broadcasted as they arrive
+
+## Architecture
+
+- **Runtime**: Bun (fast JavaScript/TypeScript runtime)
+- **Language**: TypeScript
+- **Database**: SQLite at `../../data/events.db` (WAL mode enabled)
+- **Transport**: HTTP REST + WebSocket
+- **Port**: 4000
 
 ## Database Schema
 
@@ -108,117 +86,93 @@ CREATE TABLE events (
   hook_event_type TEXT NOT NULL,
   payload TEXT NOT NULL,
   ai_summary TEXT,
-  chat_transcript TEXT
+  chat_transcript TEXT,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
-
-CREATE INDEX idx_timestamp ON events(timestamp DESC);
-CREATE INDEX idx_source_app ON events(source_app);
-CREATE INDEX idx_session_id ON events(session_id);
-CREATE INDEX idx_hook_event_type ON events(hook_event_type);
 ```
 
-## Hook Integration
+## Event Flow
 
-Events are sent from Claude Code hooks using the `send_event.py` script:
-
-```bash
-# From .claude/hooks/
-uv run send_event.py --source-app resume-agent --event-type PreToolUse --summarize
 ```
-
-Example `.claude/settings.json`:
-
-```json
-{
-  "hooks": {
-    "PreToolUse": [{
-      "matcher": "",
-      "hooks": [{
-        "type": "command",
-        "command": "uv run .claude/hooks/send_event.py --source-app resume-agent --event-type PreToolUse --summarize"
-      }]
-    }]
-  }
-}
+Claude Hook → send_event.py → HTTP POST /events → SQLite → WebSocket Broadcast → Web Clients
 ```
 
 ## Development
 
-### File Structure
+### Project Structure
 
 ```
 apps/observability-server/
 ├── src/
 │   ├── index.ts     # HTTP + WebSocket server
-│   ├── db.ts        # SQLite database management
-│   ├── types.ts     # TypeScript type definitions
-│   └── theme.ts     # Theme management (optional)
+│   ├── db.ts        # SQLite database operations
+│   └── types.ts     # TypeScript type definitions
 ├── package.json
 ├── tsconfig.json
-├── README.md
-└── CLAUDE.md
+└── README.md
 ```
 
-### Type Checking
+### Testing
 
 ```bash
-bun run typecheck
-```
-
-### Database Location
-
-The SQLite database is created at: `../../data/events.db` (relative to project root)
-
-## Testing
-
-### Manual Event Test
-
-```bash
+# Test event submission
 curl -X POST http://localhost:4000/events \
   -H "Content-Type: application/json" \
-  -d '{
-    "source_app": "test",
-    "session_id": "test-123",
-    "hook_event_type": "PreToolUse",
-    "payload": {"tool_name": "Bash", "tool_input": {"command": "ls"}}
-  }'
-```
+  -d '{"timestamp":1234567890,"source_app":"test","session_id":"123","hook_event_type":"PreToolUse","payload":{}}'
 
-### WebSocket Test
-
-```javascript
+# Test WebSocket (in browser console)
 const ws = new WebSocket('ws://localhost:4000/stream');
-ws.onmessage = (event) => {
-  console.log('Event received:', JSON.parse(event.data));
-};
+ws.onmessage = (e) => console.log(JSON.parse(e.data));
 ```
+
+## Configuration
+
+No configuration files needed - server uses sensible defaults:
+- Port: 4000
+- Database: `../../data/events.db`
+- CORS: Enabled for all origins (localhost only)
+
+## Integration
+
+### With Root Hooks (../../.claude/hooks/)
+Hook scripts send events using `send_event.py`:
+```bash
+uv run .claude/hooks/send_event.py --source-app resume-agent --event-type PreToolUse
+```
+
+### With Web Client (../client/)
+Web client connects via:
+- WebSocket: `ws://localhost:4000/stream` for real-time updates
+- REST API: `http://localhost:4000/events/recent` for historical data
+
+### With Database (../../data/)
+Events stored in shared `events.db` at repository root for cross-app access.
+
+## Attribution
+
+Adapted from [Disler's Multi-Agent Observability](https://github.com/disler/claude-code-hooks-multi-agent-observability)
 
 ## Troubleshooting
 
-### Port Already in Use
-
-If port 4000 is already in use, change it in `src/index.ts`:
-
-```typescript
-const PORT = 4001; // Change to any available port
+### Port 4000 already in use
+```powershell
+# Kill process using port 4000
+Get-NetTCPConnection -LocalPort 4000 | Select-Object -ExpandProperty OwningProcess | Stop-Process -Force
 ```
 
-### Database Locked
-
-If you see SQLite "database is locked" errors:
-1. Close all connections to the database
-2. Delete `../../data/events.db` and `../../data/events.db-wal`
-3. Restart the server
-
-### Bun Not Found
-
-Install Bun:
+### Database locked errors
+Ensure WAL mode is enabled (should be automatic). If issues persist:
 ```bash
-curl -fsSL https://bun.sh/install | bash
+sqlite3 ../../data/events.db "PRAGMA journal_mode=WAL;"
 ```
+
+### WebSocket connection fails
+1. Verify server is running on port 4000
+2. Check browser console for CORS errors
+3. Ensure no firewall blocking localhost connections
 
 ## Related Documentation
 
-- [Client App](../client/README.md) - Web dashboard for visualizing events
-- [Root README](../../README.md) - Overall project architecture
-- [Disler's Original Repo](https://github.com/disler/claude-code-hooks-multi-agent-observability)
+- [CLAUDE.md](CLAUDE.md) - Detailed development instructions
+- [../../README.md](../../README.md) - Project overview
+- [../client/README.md](../client/README.md) - Web dashboard documentation

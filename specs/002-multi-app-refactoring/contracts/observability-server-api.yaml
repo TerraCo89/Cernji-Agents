@@ -1,0 +1,244 @@
+openapi: 3.0.3
+info:
+  title: Observability Server API
+  description: |
+    Event collection and streaming API for multi-agent observability.
+
+    Accepts events from hooks via HTTP POST and broadcasts them to connected
+    WebSocket clients in real-time.
+  version: 1.0.0
+  contact:
+    name: Multi-App Refactoring
+
+servers:
+  - url: http://localhost:4000
+    description: Local development server
+
+paths:
+  /events:
+    post:
+      summary: Submit new event
+      description: |
+        Submit an observability event from a hook or application.
+        Events are stored in SQLite and broadcast to WebSocket clients.
+
+        This endpoint is non-blocking and returns quickly.
+      operationId: createEvent
+      tags:
+        - Events
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EventInput'
+            examples:
+              preToolUse:
+                summary: Pre-tool use event
+                value:
+                  timestamp: "2025-10-21T10:30:45.123Z"
+                  source_app: "resume-agent"
+                  event_type: "PreToolUse"
+                  tool_name: "mcp__sqlite__query"
+                  summary: "Querying portfolio_library table for RAG examples"
+                  session_id: "550e8400-e29b-41d4-a716-446655440000"
+              userPrompt:
+                summary: User prompt submit event
+                value:
+                  timestamp: "2025-10-21T10:32:10.456Z"
+                  source_app: "resume-agent"
+                  event_type: "UserPromptSubmit"
+                  summary: "User requested job application for Cookpad position"
+                  session_id: "550e8400-e29b-41d4-a716-446655440000"
+      responses:
+        '201':
+          description: Event created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Event'
+        '400':
+          description: Invalid event data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /events/recent:
+    get:
+      summary: Get recent events
+      description: |
+        Retrieve the most recent events, optionally filtered by source app.
+        Used by dashboard for initial load and pagination.
+      operationId: getRecentEvents
+      tags:
+        - Events
+      parameters:
+        - name: limit
+          in: query
+          description: Maximum number of events to return
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+        - name: source_app
+          in: query
+          description: Filter by source application
+          required: false
+          schema:
+            type: string
+            example: "resume-agent"
+        - name: offset
+          in: query
+          description: Number of events to skip (for pagination)
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+      responses:
+        '200':
+          description: List of events
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  events:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Event'
+                  total:
+                    type: integer
+                    description: Total number of events (for pagination)
+        '400':
+          description: Invalid query parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /stream:
+    get:
+      summary: WebSocket event stream
+      description: |
+        WebSocket endpoint for real-time event streaming.
+
+        Clients connect via ws://localhost:4000/stream and receive
+        new events as JSON messages immediately after they're stored.
+
+        **Protocol**: WebSocket (upgrade from HTTP GET)
+        **Message Format**: JSON (see Event schema)
+      operationId: streamEvents
+      tags:
+        - Events
+      responses:
+        '101':
+          description: WebSocket connection upgraded
+        '400':
+          description: WebSocket upgrade failed
+
+components:
+  schemas:
+    EventInput:
+      type: object
+      required:
+        - timestamp
+        - source_app
+        - event_type
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+          description: ISO 8601 timestamp
+          example: "2025-10-21T10:30:45.123Z"
+        source_app:
+          type: string
+          minLength: 1
+          description: Application identifier
+          enum:
+            - resume-agent
+            - translation-teacher
+            - observability-server
+            - client
+          example: "resume-agent"
+        event_type:
+          type: string
+          description: Type of event
+          enum:
+            - PreToolUse
+            - PostToolUse
+            - UserPromptSubmit
+            - SessionStart
+            - SessionEnd
+            - Notification
+            - Stop
+            - SubagentStop
+            - PreCompact
+          example: "PreToolUse"
+        tool_name:
+          type: string
+          description: Name of tool being used (for tool events)
+          example: "mcp__sqlite__query"
+        summary:
+          type: string
+          maxLength: 1000
+          description: Human-readable summary of the event
+          example: "Querying portfolio_library table for RAG examples"
+        session_id:
+          type: string
+          format: uuid
+          description: UUID for grouping related events
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        metadata:
+          type: string
+          description: JSON string with additional context
+          example: '{"query": "SELECT * FROM portfolio_library WHERE technologies LIKE \'%RAG%\'"}'
+
+    Event:
+      allOf:
+        - $ref: '#/components/schemas/EventInput'
+        - type: object
+          required:
+            - id
+            - created_at
+          properties:
+            id:
+              type: integer
+              description: Unique event ID (auto-generated)
+              example: 123
+            created_at:
+              type: string
+              format: date-time
+              description: Database insert timestamp
+              example: "2025-10-21T10:30:45.456Z"
+
+    Error:
+      type: object
+      required:
+        - error
+        - message
+      properties:
+        error:
+          type: string
+          description: Error type
+          example: "ValidationError"
+        message:
+          type: string
+          description: Human-readable error message
+          example: "Invalid event_type: must be one of [PreToolUse, PostToolUse, ...]"
+        details:
+          type: object
+          description: Additional error context
+
+tags:
+  - name: Events
+    description: Event submission and retrieval
