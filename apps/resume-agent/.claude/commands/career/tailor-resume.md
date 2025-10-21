@@ -1,6 +1,6 @@
 ---
 description: Tailor your resume for a specific job posting
-allowed-tools: SlashCommand, Task
+allowed-tools: SlashCommand, Task, mcp__playwright__browser_navigate, mcp__playwright__browser_snapshot, mcp__playwright__browser_close, mcp__resume-agent__data_read_job_analysis, mcp__resume-agent__data_write_job_analysis, mcp__resume-agent__data_read_master_resume, mcp__resume-agent__data_read_career_history, mcp__resume-agent__data_write_tailored_resume
 argument-hint: [job-url]
 ---
 

@@ -1,6 +1,6 @@
 ---
 description: Complete job application workflow - analyzes job, tailors resume, generates cover letter, finds portfolio examples
-allowed-tools: SlashCommand, Task, Bash(gh:*)
+allowed-tools: SlashCommand, Task, Bash(gh:*), mcp__playwright__browser_navigate, mcp__playwright__browser_snapshot, mcp__playwright__browser_close, mcp__resume-agent__data_read_job_analysis, mcp__resume-agent__data_write_job_analysis, mcp__resume-agent__data_read_master_resume, mcp__resume-agent__data_read_career_history, mcp__resume-agent__data_write_tailored_resume, mcp__resume-agent__data_write_cover_letter, mcp__resume-agent__data_write_portfolio_examples
 argument-hint: [job-url]
 ---
 

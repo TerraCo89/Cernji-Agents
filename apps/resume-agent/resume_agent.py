@@ -72,20 +72,20 @@ mcp = FastMCP(
     version="0.1.0"
 )
 
-# Project paths
-APP_ROOT = Path(__file__).parent  # apps/resume-agent/
-PROJECT_ROOT = APP_ROOT.parent.parent  # ResumeAgent/
-COMMANDS_DIR = APP_ROOT / ".claude" / "commands"
-AGENTS_DIR = APP_ROOT / ".claude" / "agents"
-RESUMES_DIR = PROJECT_ROOT / "resumes"
-DATA_DIR = PROJECT_ROOT / "data"
-APPLICATIONS_DIR = PROJECT_ROOT / "job-applications"
+# Project paths - Multi-app architecture
+# From: apps/resume-agent/resume_agent.py
+# To:   repository root (3 levels up: resume_agent.py -> apps/resume-agent -> apps -> root)
+PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+COMMANDS_DIR = Path(__file__).parent / ".claude" / "commands"  # App-specific commands
+AGENTS_DIR = Path(__file__).parent / ".claude" / "agents"      # App-specific agents
+RESUMES_DIR = PROJECT_ROOT / "resumes"                          # Root-level shared data
+APPLICATIONS_DIR = PROJECT_ROOT / "job-applications"            # Root-level shared data
+DATA_DIR = PROJECT_ROOT / "data"                                # Root-level shared database
 MASTER_RESUME = RESUMES_DIR / "kris-cernjavic-resume.yaml"
 CAREER_HISTORY = RESUMES_DIR / "career-history.yaml"
 
 # Ensure directories exist
 APPLICATIONS_DIR.mkdir(parents=True, exist_ok=True)
-DATA_DIR.mkdir(parents=True, exist_ok=True)
 
 
 # ============================================================================
@@ -1369,8 +1369,7 @@ def get_storage_backend() -> tuple[ResumeRepository, CareerHistoryRepository, Jo
     logger.info(f"Initializing storage backend: {backend_type}")
 
     if backend_type == "sqlite":
-        default_db_path = str(DATA_DIR / "resume_agent.db")
-        db_path = os.getenv("SQLITE_DATABASE_PATH", default_db_path)
+        db_path = os.getenv("SQLITE_DATABASE_PATH", str(DATA_DIR / "resume_agent.db"))
         logger.info(f"Using SQLite database: {db_path}")
 
         # Ensure data directory exists

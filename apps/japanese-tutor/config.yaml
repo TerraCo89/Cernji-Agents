@@ -1,0 +1,19 @@
+# Japanese Tutor Configuration
+# Configuration for the screenshot watcher agent
+
+# Directory to monitor for new screenshots
+# Update this to your RetroArch screenshots folder
+# Example: C:\Users\YourName\AppData\Roaming\RetroArch\screenshots
+screenshot_dir: "C:\\Path\\To\\RetroArch\\screenshots"
+
+# Prompt template file
+prompt_template: "prompts/japanese_tutor.md"
+
+# Claude model to use
+model: "claude-sonnet-4-20250514"
+
+# File patterns to watch (screenshots)
+file_patterns:
+  - "*.png"
+  - "*.jpg"
+  - "*.jpeg"
