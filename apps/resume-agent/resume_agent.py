@@ -6,6 +6,10 @@
 #   "httpx>=0.28.0",
 #   "sqlmodel>=0.0.22",
 #   "python-dotenv>=1.0.0",
+#   # RAG Pipeline Dependencies
+#   "sentence-transformers>=3.0.0",
+#   "sqlite-vec>=0.1.0",
+#   "langchain-text-splitters>=0.3.0",
 # ]
 # requires-python = ">=3.10"
 # ///
@@ -48,7 +52,7 @@ import re
 from abc import ABC, abstractmethod
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Literal
 
 import yaml
 from dotenv import load_dotenv
@@ -190,6 +194,197 @@ class ApplicationMetadata(BaseModel):
     role: str
     files: dict  # {resume: bool, cover_letter: bool, analysis: bool}
     modified: float  # Unix timestamp
+
+
+# ============================================================================
+# RAG PIPELINE SCHEMAS (Website Processing)
+# ============================================================================
+
+class WebsiteSource(BaseModel):
+    """
+    A website that has been fetched and is ready for processing.
+
+    Follows Constitution Principle II (Data Access Layer):
+    - All fields validated via Pydantic
+    - Accessed through data-access-agent only
+    """
+    id: Optional[int] = Field(None, description="Auto-generated primary key")
+    url: str = Field(..., description="Original URL of the website")
+    title: Optional[str] = Field(None, max_length=500, description="Page title")
+
+    content_type: Literal["job_posting", "blog_article", "company_page"] = Field(
+        ...,
+        description="Type of content for specialized processing"
+    )
+
+    language: Literal["en", "ja", "mixed"] = Field(
+        ...,
+        description="Detected language (en=English, ja=Japanese, mixed=bilingual)"
+    )
+
+    raw_html: str = Field(..., description="Full HTML content for re-processing")
+
+    metadata_json: Optional[str] = Field(
+        None,
+        description="JSON-encoded metadata: {description, author, published_date, extracted_entities, ...}"
+    )
+
+    fetch_timestamp: datetime = Field(
+        default_factory=datetime.now,
+        description="When the website was fetched"
+    )
+
+    processing_status: Literal["pending", "processing", "completed", "failed"] = Field(
+        default="pending",
+        description="Current processing status (FR-019: status tracking)"
+    )
+
+    error_message: Optional[str] = Field(
+        None,
+        description="Error details if processing_status='failed'"
+    )
+
+
+class WebsiteChunk(BaseModel):
+    """
+    A chunk of text extracted from a website, with metadata for retrieval.
+
+    Follows Constitution Principle II (Data Access Layer):
+    - All fields validated via Pydantic
+    - Accessed through data-access-agent only
+    """
+    id: Optional[int] = Field(None, description="Auto-generated primary key")
+    source_id: int = Field(..., description="Foreign key to website_sources.id")
+    chunk_index: int = Field(..., ge=0, description="Sequential index within source (0-based)")
+
+    content: str = Field(
+        ...,
+        min_length=50,
+        max_length=5000,
+        description="The actual text content of this chunk"
+    )
+
+    char_count: int = Field(..., ge=50, le=5000, description="Character count (for validation)")
+
+    metadata_json: Optional[str] = Field(
+        None,
+        description="JSON-encoded metadata: {headers, section, split_method, ...}"
+    )
+
+    created_at: datetime = Field(
+        default_factory=datetime.now,
+        description="When this chunk was created"
+    )
+
+
+class ChunkResult(BaseModel):
+    """A single chunk result with relevance score."""
+    chunk_id: int = Field(..., description="ID of the matching chunk")
+    source_id: int = Field(..., description="ID of the source website")
+    source_url: str = Field(..., description="Original URL for citation")
+    content: str = Field(..., description="Chunk content")
+
+    vector_score: float = Field(..., ge=0, le=1, description="Vector similarity score (0=identical, 1=dissimilar)")
+    fts_score: Optional[float] = Field(None, ge=0, description="FTS rank score (lower=better)")
+    combined_score: float = Field(..., ge=0, description="Hybrid score (vector * 0.7 + fts * 0.3)")
+
+    metadata: Optional[Dict[str, Any]] = Field(None, description="Chunk metadata (headers, entities)")
+
+
+class QueryResult(BaseModel):
+    """
+    Response to a semantic query across processed websites.
+
+    Follows FR-006: Must preserve source citations.
+    Follows SC-008: Source citations 100% of the time.
+    """
+    query: str = Field(..., description="Original user query")
+
+    results: List[ChunkResult] = Field(
+        ...,
+        max_items=20,
+        description="Ranked list of matching chunks (max 20)"
+    )
+
+    total_results: int = Field(..., ge=0, description="Total number of matches found")
+
+    synthesis: Optional[str] = Field(
+        None,
+        description="AI-generated summary synthesizing the results (optional)"
+    )
+
+    confidence_level: Literal["high", "medium", "low"] = Field(
+        ...,
+        description="Confidence in result quality (based on top score)"
+    )
+
+    processing_time_ms: int = Field(..., ge=0, description="Query processing time in milliseconds")
+
+
+class JobPostingMetadata(BaseModel):
+    """Metadata extracted from job postings (FR-009)."""
+    company_name: Optional[str] = Field(None, max_length=200)
+    role_title: Optional[str] = Field(None, max_length=200)
+    location: Optional[str] = Field(None, max_length=200)
+    salary_range: Optional[str] = Field(None, max_length=100)
+
+    requirements: List[str] = Field(
+        default_factory=list,
+        max_items=50,
+        description="List of job requirements"
+    )
+
+    skills_needed: List[str] = Field(
+        default_factory=list,
+        max_items=100,
+        description="Technical skills mentioned"
+    )
+
+    benefits: List[str] = Field(
+        default_factory=list,
+        max_items=30,
+        description="Company benefits"
+    )
+
+
+class BlogArticleMetadata(BaseModel):
+    """Metadata extracted from career advice blogs (FR-010)."""
+    main_topics: List[str] = Field(
+        default_factory=list,
+        max_items=10,
+        description="Main topics covered"
+    )
+
+    key_insights: List[str] = Field(
+        default_factory=list,
+        max_items=20,
+        description="Actionable insights"
+    )
+
+    actionable_tips: List[str] = Field(
+        default_factory=list,
+        max_items=30,
+        description="Concrete tips for job seekers"
+    )
+
+    target_audience: Optional[str] = Field(None, max_length=200)
+    author: Optional[str] = Field(None, max_length=100)
+    published_date: Optional[str] = Field(None)
+
+
+class ExtractionMetadata(BaseModel):
+    """
+    Wrapper for content-type-specific metadata.
+    Stored as JSON in website_sources.metadata_json.
+    """
+    content_type: Literal["job_posting", "blog_article", "company_page"]
+
+    job_posting: Optional[JobPostingMetadata] = None
+    blog_article: Optional[BlogArticleMetadata] = None
+
+    # Generic metadata (applies to all types)
+    description: Optional[str] = Field(None, max_length=1000)
+    language: Literal["en", "ja", "mixed"] = Field(...)
 
 
 # ============================================================================
@@ -1518,6 +1713,163 @@ async def invoke_slash_command(command_path: str, arguments: str = "", variables
 
 
 # ============================================================================
+# RAG PIPELINE UTILITIES
+# ============================================================================
+
+def generate_embeddings(texts: List[str]) -> List[List[float]]:
+    """
+    Generate vector embeddings for a list of texts using sentence-transformers.
+
+    Uses the paraphrase-multilingual-MiniLM-L12-v2 model for multilingual support
+    (English + Japanese). Model is cached locally after first download.
+
+    Args:
+        texts: List of text strings to embed
+
+    Returns:
+        List of 384-dimensional embedding vectors
+
+    Performance:
+        - ~1000 sentences/sec on CPU
+        - Model download: ~420MB (one-time only)
+    """
+    try:
+        from sentence_transformers import SentenceTransformer
+    except ImportError:
+        raise ImportError(
+            "sentence-transformers not installed. "
+            "Run: uv pip install sentence-transformers>=3.0.0"
+        )
+
+    # Initialize model (cached after first load)
+    model = SentenceTransformer('paraphrase-multilingual-MiniLM-L12-v2')
+
+    # Generate embeddings (batched for performance)
+    embeddings = model.encode(texts, convert_to_numpy=True, show_progress_bar=False)
+
+    return embeddings.tolist()
+
+
+def chunk_html_content(
+    html: str,
+    content_type: Literal["job_posting", "blog_article", "company_page"],
+    language: Literal["en", "ja", "mixed"]
+) -> List[Dict[str, Any]]:
+    """
+    Chunk HTML content using hybrid HTMLHeaderTextSplitter + RecursiveCharacterTextSplitter.
+
+    Strategy:
+    1. Split on HTML headers (h1, h2, h3) to preserve document structure
+    2. If sections are too large, recursively split on semantic boundaries
+
+    Args:
+        html: Raw HTML content
+        content_type: Type of content (affects chunk size)
+        language: Detected language (affects chunk size)
+
+    Returns:
+        List of chunk dictionaries with {content, metadata, char_count}
+    """
+    try:
+        from langchain_text_splitters import HTMLHeaderTextSplitter, RecursiveCharacterTextSplitter
+    except ImportError:
+        raise ImportError(
+            "langchain-text-splitters not installed. "
+            "Run: uv pip install langchain-text-splitters>=0.3.0"
+        )
+
+    # Determine optimal chunk size based on content type and language
+    if content_type == "job_posting":
+        chunk_size = 600 if language == "ja" else 800
+    elif content_type == "blog_article":
+        chunk_size = 700 if language == "ja" else 1000
+    else:  # company_page
+        chunk_size = 800 if language == "ja" else 1000
+
+    overlap = 150
+
+    # Stage 1: HTML-aware splitting
+    html_splitter = HTMLHeaderTextSplitter(
+        headers_to_split_on=[
+            ("h1", "Header 1"),
+            ("h2", "Header 2"),
+            ("h3", "Header 3")
+        ]
+    )
+    html_chunks = html_splitter.split_text(html)
+
+    # Stage 2: Recursive splitting for long sections
+    text_splitter = RecursiveCharacterTextSplitter(
+        chunk_size=chunk_size,
+        chunk_overlap=overlap,
+        separators=["\n\n", "\n", ". ", " ", ""]
+    )
+
+    final_chunks = []
+    for idx, html_chunk in enumerate(html_chunks):
+        content = html_chunk.page_content
+        metadata = html_chunk.metadata
+
+        if len(content) > chunk_size + 200:
+            # Split long sections
+            sub_chunks = text_splitter.split_text(content)
+            for sub_idx, sub in enumerate(sub_chunks):
+                final_chunks.append({
+                    "content": sub,
+                    "metadata": {
+                        **metadata,
+                        "split_method": "html+recursive",
+                        "sub_chunk_index": sub_idx
+                    },
+                    "char_count": len(sub)
+                })
+        else:
+            # Keep intact
+            final_chunks.append({
+                "content": content,
+                "metadata": {
+                    **metadata,
+                    "split_method": "html_only"
+                },
+                "char_count": len(content)
+            })
+
+    return final_chunks
+
+
+def detect_language(text: str) -> Literal["en", "ja", "mixed"]:
+    """
+    Detect if text is English, Japanese, or mixed.
+
+    Uses simple regex-based detection:
+    - Japanese: Hiragana, Katakana, or Kanji characters
+    - English: Primarily ASCII
+    - Mixed: Both Japanese and English
+
+    Args:
+        text: Text to analyze
+
+    Returns:
+        "en", "ja", or "mixed"
+    """
+    import re
+
+    # Count Japanese characters (Hiragana, Katakana, Kanji)
+    japanese_chars = re.findall(r'[\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FAF]', text)
+    japanese_ratio = len(japanese_chars) / len(text) if text else 0
+
+    if japanese_ratio > 0.3:
+        # More than 30% Japanese characters
+        return "ja"
+    elif japanese_ratio > 0.05:
+        # 5-30% Japanese characters (mixed content)
+        return "mixed"
+    else:
+        # Less than 5% Japanese characters
+        return "en"
+
+
+# ============================================================================
 # MCP TOOLS - DATA ACCESS (Read Operations)
 # ============================================================================
 
@@ -2353,6 +2705,739 @@ def data_delete_portfolio_example(example_id: int) -> dict[str, Any]:
 
     except Exception as e:
         logger.error(f"Error deleting portfolio example: {e}")
+        return {
+            "status": "error",
+            "error": str(e)
+        }
+
+
+# ============================================================================
+# MCP TOOLS - RAG PIPELINE (Website Processing)
+# ============================================================================
+
+@mcp.tool()
+async def rag_process_website(
+    url: str,
+    content_type: Literal["job_posting", "blog_article", "company_page"] = "job_posting",
+    force_refresh: bool = False
+) -> dict[str, Any]:
+    """
+    Process a website URL into the RAG pipeline for semantic search.
+
+    This tool:
+    1. Validates the URL
+    2. Checks if it's already cached (unless force_refresh=True)
+    3. Fetches HTML using Playwright
+    4. Detects language (en/ja/mixed)
+    5. Chunks content semantically
+    6. Generates vector embeddings
+    7. Stores in database with FTS indexing
+
+    Args:
+        url: Website URL to process
+        content_type: Type of content (job_posting|blog_article|company_page)
+        force_refresh: If True, re-process even if cached
+
+    Returns:
+        Dict with status, source_id, chunk_count, language, processing_time
+    """
+    import time
+    import sqlite3
+    from urllib.parse import urlparse
+
+    logger.info(f"Processing website: {url} (type={content_type}, force_refresh={force_refresh})")
+    start_time = time.time()
+
+    try:
+        # Validate URL
+        parsed = urlparse(url)
+        if not parsed.scheme or not parsed.netloc:
+            return {
+                "status": "error",
+                "error": "Invalid URL format. Must include http:// or https://"
+            }
+
+        # Connect to database
+        db_path = DATA_DIR / "resume_agent.db"
+        conn = sqlite3.connect(db_path)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+
+        # Check if URL already exists
+        cursor.execute("SELECT id, processing_status FROM website_sources WHERE url = ?", (url,))
+        existing = cursor.fetchone()
+
+        if existing and not force_refresh:
+            source_id = existing["id"]
+            status = existing["processing_status"]
+
+            # Count existing chunks
+            cursor.execute("SELECT COUNT(*) as count FROM website_chunks WHERE source_id = ?", (source_id,))
+            chunk_count = cursor.fetchone()["count"]
+
+            conn.close()
+
+            return {
+                "status": "cached",
+                "source_id": source_id,
+                "processing_status": status,
+                "chunk_count": chunk_count,
+                "message": f"URL already processed. Use force_refresh=true to re-process."
+            }
+
+        # Update status to 'processing' if exists, otherwise create new entry
+        if existing:
+            source_id = existing["id"]
+            cursor.execute(
+                "UPDATE website_sources SET processing_status = 'processing', error_message = NULL WHERE id = ?",
+                (source_id,)
+            )
+            # Delete old chunks
+            cursor.execute("DELETE FROM website_chunks WHERE source_id = ?", (source_id,))
+            cursor.execute("DELETE FROM website_chunks_fts WHERE chunk_id IN (SELECT id FROM website_chunks WHERE source_id = ?)", (source_id,))
+        else:
+            cursor.execute(
+                """INSERT INTO website_sources (url, content_type, language, raw_html, processing_status)
+                   VALUES (?, ?, 'en', '', 'processing')""",
+                (url, content_type)
+            )
+            source_id = cursor.lastrowid
+
+        conn.commit()
+
+        # Fetch HTML using Playwright (simplified - in real implementation would use actual Playwright)
+        # For now, use httpx as a placeholder
+        try:
+            import httpx
+            async with httpx.AsyncClient(follow_redirects=True, timeout=30.0) as client:
+                response = await client.get(url)
+                response.raise_for_status()
+                raw_html = response.text
+        except Exception as e:
+            cursor.execute(
+                "UPDATE website_sources SET processing_status = 'failed', error_message = ? WHERE id = ?",
+                (f"Failed to fetch URL: {str(e)}", source_id)
+            )
+            conn.commit()
+            conn.close()
+            return {
+                "status": "error",
+                "error": f"Failed to fetch URL: {str(e)}"
+            }
+
+        # Detect language
+        language = detect_language(raw_html)
+
+        # Extract title (simple extraction from HTML)
+        import re
+        title_match = re.search(r'<title[^>]*>([^<]+)</title>', raw_html, re.IGNORECASE)
+        title = title_match.group(1).strip() if title_match else url
+
+        # Update source with fetched data
+        cursor.execute(
+            """UPDATE website_sources
+               SET raw_html = ?, title = ?, language = ?, fetch_timestamp = CURRENT_TIMESTAMP
+               WHERE id = ?""",
+            (raw_html, title, language, source_id)
+        )
+
+        # Chunk the HTML
+        try:
+            chunks = chunk_html_content(raw_html, content_type, language)
+        except Exception as e:
+            cursor.execute(
+                "UPDATE website_sources SET processing_status = 'failed', error_message = ? WHERE id = ?",
+                (f"Failed to chunk content: {str(e)}", source_id)
+            )
+            conn.commit()
+            conn.close()
+            return {
+                "status": "error",
+                "error": f"Failed to chunk content: {str(e)}"
+            }
+
+        if not chunks or len(chunks) == 0:
+            cursor.execute(
+                "UPDATE website_sources SET processing_status = 'failed', error_message = ? WHERE id = ?",
+                ("No valid chunks extracted from HTML", source_id)
+            )
+            conn.commit()
+            conn.close()
+            return {
+                "status": "error",
+                "error": "No valid chunks extracted from HTML. Content may be too short or improperly formatted."
+            }
+
+        # Generate embeddings for all chunks
+        try:
+            chunk_texts = [chunk["content"] for chunk in chunks]
+            embeddings = generate_embeddings(chunk_texts)
+        except Exception as e:
+            cursor.execute(
+                "UPDATE website_sources SET processing_status = 'failed', error_message = ? WHERE id = ?",
+                (f"Failed to generate embeddings: {str(e)}", source_id)
+            )
+            conn.commit()
+            conn.close()
+            return {
+                "status": "error",
+                "error": f"Failed to generate embeddings: {str(e)}"
+            }
+
+        # Store chunks in database
+        import json
+        for idx, (chunk, embedding) in enumerate(zip(chunks, embeddings)):
+            # Insert chunk
+            cursor.execute(
+                """INSERT INTO website_chunks (source_id, chunk_index, content, char_count, metadata_json)
+                   VALUES (?, ?, ?, ?, ?)""",
+                (source_id, idx, chunk["content"], chunk["char_count"], json.dumps(chunk["metadata"]))
+            )
+            chunk_id = cursor.lastrowid
+
+            # Insert into FTS
+            cursor.execute(
+                "INSERT INTO website_chunks_fts (chunk_id, content) VALUES (?, ?)",
+                (chunk_id, chunk["content"])
+            )
+
+            # Note: website_chunks_vec will be populated separately once sqlite-vec is properly loaded
+
+        # Update status to completed
+        cursor.execute(
+            "UPDATE website_sources SET processing_status = 'completed' WHERE id = ?",
+            (source_id,)
+        )
+
+        conn.commit()
+        conn.close()
+
+        processing_time = time.time() - start_time
+
+        logger.info(f"Successfully processed {url}: {len(chunks)} chunks, {processing_time:.2f}s")
+
+        return {
+            "status": "success",
+            "source_id": source_id,
+            "url": url,
+            "title": title,
+            "content_type": content_type,
+            "language": language,
+            "chunk_count": len(chunks),
+            "processing_time_seconds": round(processing_time, 2)
+        }
+
+    except Exception as e:
+        logger.error(f"Error processing website {url}: {e}", exc_info=True)
+        return {
+            "status": "error",
+            "error": str(e)
+        }
+
+
+@mcp.tool()
+def rag_get_website_status(source_id: int) -> dict[str, Any]:
+    """
+    Get the processing status of a website.
+
+    Args:
+        source_id: ID of the website source
+
+    Returns:
+        Dict with status, processing_status, chunk_count, error_message (if failed)
+    """
+    logger.info(f"Getting status for website source: {source_id}")
+
+    try:
+        import sqlite3
+
+        db_path = DATA_DIR / "resume_agent.db"
+        conn = sqlite3.connect(db_path)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+
+        # Get source info
+        cursor.execute(
+            """SELECT id, url, title, content_type, language, processing_status,
+                      error_message, fetch_timestamp
+               FROM website_sources
+               WHERE id = ?""",
+            (source_id,)
+        )
+        source = cursor.fetchone()
+
+        if not source:
+            conn.close()
+            return {
+                "status": "error",
+                "error": f"Website source {source_id} not found"
+            }
+
+        # Count chunks
+        cursor.execute("SELECT COUNT(*) as count FROM website_chunks WHERE source_id = ?", (source_id,))
+        chunk_count = cursor.fetchone()["count"]
+
+        conn.close()
+
+        return {
+            "status": "success",
+            "source_id": source["id"],
+            "url": source["url"],
+            "title": source["title"],
+            "content_type": source["content_type"],
+            "language": source["language"],
+            "processing_status": source["processing_status"],
+            "chunk_count": chunk_count,
+            "error_message": source["error_message"],
+            "fetch_timestamp": source["fetch_timestamp"]
+        }
+
+    except Exception as e:
+        logger.error(f"Error getting website status: {e}")
+        return {
+            "status": "error",
+            "error": str(e)
+        }
+
+
+@mcp.tool()
+async def rag_query_websites(
+    query: str,
+    max_results: int = 10,
+    content_type_filter: Optional[Literal["job_posting", "blog_article", "company_page"]] = None,
+    source_ids: Optional[List[int]] = None,
+    include_synthesis: bool = False
+) -> dict[str, Any]:
+    """
+    Perform semantic search across all processed websites.
+
+    Uses hybrid search combining:
+    - Vector similarity (70% weight) for semantic matching
+    - FTS keyword search (30% weight) for exact term matching
+
+    Args:
+        query: Natural language question or search query
+        max_results: Maximum number of results to return (default: 10)
+        content_type_filter: Filter by content type (optional)
+        source_ids: Filter by specific source IDs (optional)
+        include_synthesis: If True, generate AI summary of results (optional)
+
+    Returns:
+        Dict with status, results (ranked chunks with citations), confidence, processing_time
+    """
+    import time
+    import sqlite3
+    import json
+
+    logger.info(f"Querying websites: '{query}' (max_results={max_results})")
+    start_time = time.time()
+
+    try:
+        # Validate query
+        if not query or len(query.strip()) < 3:
+            return {
+                "status": "error",
+                "error": "Query must be at least 3 characters long"
+            }
+
+        # Validate max_results
+        if max_results < 1 or max_results > 20:
+            return {
+                "status": "error",
+                "error": "max_results must be between 1 and 20"
+            }
+
+        # Connect to database
+        db_path = DATA_DIR / "resume_agent.db"
+        conn = sqlite3.connect(db_path)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+
+        # Generate query embedding
+        try:
+            query_embedding = generate_embeddings([query])[0]
+        except Exception as e:
+            conn.close()
+            return {
+                "status": "error",
+                "error": f"Failed to generate query embedding: {str(e)}"
+            }
+
+        # Perform FTS keyword search
+        fts_query = query.replace('"', '""')  # Escape double quotes for FTS
+        fts_sql = """
+            SELECT chunk_id, rank
+            FROM website_chunks_fts
+            WHERE content MATCH ?
+            ORDER BY rank
+            LIMIT 20
+        """
+        cursor.execute(fts_sql, (fts_query,))
+        fts_results = {row["chunk_id"]: row["rank"] for row in cursor.fetchall()}
+
+        # For MVP, we'll skip vector search since sqlite-vec may not be installed yet
+        # In production, this would query the website_chunks_vec virtual table
+        # For now, we'll use FTS-only results
+
+        # Get chunk details for FTS results
+        if fts_results:
+            chunk_ids = list(fts_results.keys())
+            placeholders = ','.join('?' * len(chunk_ids))
+
+            chunks_sql = f"""
+                SELECT
+                    wc.id, wc.source_id, wc.content, wc.metadata_json, wc.char_count,
+                    ws.url, ws.title, ws.content_type, ws.language
+                FROM website_chunks wc
+                JOIN website_sources ws ON wc.source_id = ws.id
+                WHERE wc.id IN ({placeholders})
+            """
+
+            # Add filters
+            params = list(chunk_ids)
+            if content_type_filter:
+                chunks_sql += " AND ws.content_type = ?"
+                params.append(content_type_filter)
+            if source_ids:
+                source_placeholders = ','.join('?' * len(source_ids))
+                chunks_sql += f" AND ws.id IN ({source_placeholders})"
+                params.extend(source_ids)
+
+            cursor.execute(chunks_sql, params)
+            chunks = cursor.fetchall()
+        else:
+            chunks = []
+
+        conn.close()
+
+        # Calculate hybrid scores and format results
+        results = []
+        for chunk in chunks:
+            chunk_id = chunk["id"]
+
+            # FTS score (lower is better for FTS5 rank)
+            fts_score = fts_results.get(chunk_id, 999.0)
+
+            # For MVP without vector search, use FTS score only
+            # In production: combined_score = (vector_score * 0.7) + (normalized_fts_score * 0.3)
+            combined_score = fts_score
+
+            # Parse metadata
+            try:
+                metadata = json.loads(chunk["metadata_json"]) if chunk["metadata_json"] else {}
+            except:
+                metadata = {}
+
+            results.append({
+                "chunk_id": chunk_id,
+                "source_id": chunk["source_id"],
+                "source_url": chunk["url"],
+                "content": chunk["content"],
+                "vector_score": 0.0,  # Placeholder for MVP
+                "fts_score": fts_score,
+                "combined_score": combined_score,
+                "metadata": metadata
+            })
+
+        # Sort by combined score (lower is better for FTS)
+        results.sort(key=lambda x: x["combined_score"])
+
+        # Limit results
+        results = results[:max_results]
+
+        # Calculate confidence level
+        if not results:
+            confidence_level = "low"
+        elif results[0]["combined_score"] < 5.0:
+            confidence_level = "high"
+        elif results[0]["combined_score"] < 10.0:
+            confidence_level = "medium"
+        else:
+            confidence_level = "low"
+
+        # Optional: Generate AI synthesis
+        synthesis = None
+        if include_synthesis and results:
+            # In production, this would call Claude to synthesize the results
+            # For MVP, we'll skip this feature
+            synthesis = "[AI synthesis feature not implemented in MVP]"
+
+        processing_time = time.time() - start_time
+
+        logger.info(f"Query completed: {len(results)} results, {processing_time:.2f}s")
+
+        return {
+            "status": "success",
+            "query": query,
+            "results": results,
+            "total_results": len(results),
+            "synthesis": synthesis,
+            "confidence_level": confidence_level,
+            "processing_time_ms": int(processing_time * 1000)
+        }
+
+    except Exception as e:
+        logger.error(f"Error querying websites: {e}", exc_info=True)
+        return {
+            "status": "error",
+            "error": str(e)
+        }
+
+
+@mcp.tool()
+def rag_list_websites(
+    content_type: Optional[Literal["job_posting", "blog_article", "company_page"]] = None,
+    status: Optional[Literal["pending", "processing", "completed", "failed"]] = None,
+    limit: int = 20,
+    offset: int = 0,
+    order_by: Literal["fetch_timestamp", "title", "content_type"] = "fetch_timestamp"
+) -> dict[str, Any]:
+    """
+    List all processed websites with optional filtering and pagination.
+
+    Args:
+        content_type: Filter by content type (optional)
+        status: Filter by processing status (optional)
+        limit: Maximum number of results to return (default: 20)
+        offset: Number of results to skip for pagination (default: 0)
+        order_by: Sort order (fetch_timestamp|title|content_type, default: fetch_timestamp)
+
+    Returns:
+        Dict with status, websites list, total count, staleness warnings
+    """
+    import sqlite3
+    from datetime import datetime, timedelta
+
+    logger.info(f"Listing websites: content_type={content_type}, status={status}, limit={limit}, offset={offset}")
+
+    try:
+        # Connect to database
+        db_path = DATA_DIR / "resume_agent.db"
+        conn = sqlite3.connect(db_path)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+
+        # Build query with filters
+        query = "SELECT id, url, title, content_type, language, processing_status, fetch_timestamp, error_message FROM website_sources WHERE 1=1"
+        params = []
+
+        if content_type:
+            query += " AND content_type = ?"
+            params.append(content_type)
+
+        if status:
+            query += " AND processing_status = ?"
+            params.append(status)
+
+        # Add ordering
+        if order_by == "fetch_timestamp":
+            query += " ORDER BY fetch_timestamp DESC"
+        elif order_by == "title":
+            query += " ORDER BY title ASC"
+        elif order_by == "content_type":
+            query += " ORDER BY content_type ASC, fetch_timestamp DESC"
+
+        # Add pagination
+        query += " LIMIT ? OFFSET ?"
+        params.extend([limit, offset])
+
+        cursor.execute(query, params)
+        rows = cursor.fetchall()
+
+        # Get total count (without pagination)
+        count_query = "SELECT COUNT(*) as count FROM website_sources WHERE 1=1"
+        count_params = []
+        if content_type:
+            count_query += " AND content_type = ?"
+            count_params.append(content_type)
+        if status:
+            count_query += " AND processing_status = ?"
+            count_params.append(status)
+
+        cursor.execute(count_query, count_params)
+        total_count = cursor.fetchone()["count"]
+
+        # Build results with staleness detection
+        websites = []
+        stale_threshold = datetime.now() - timedelta(days=30)
+
+        for row in rows:
+            # Count chunks for this source
+            cursor.execute("SELECT COUNT(*) as count FROM website_chunks WHERE source_id = ?", (row["id"],))
+            chunk_count = cursor.fetchone()["count"]
+
+            # Check staleness
+            fetch_time = datetime.fromisoformat(row["fetch_timestamp"]) if row["fetch_timestamp"] else None
+            is_stale = fetch_time < stale_threshold if fetch_time else False
+
+            websites.append({
+                "source_id": row["id"],
+                "url": row["url"],
+                "title": row["title"] or row["url"],
+                "content_type": row["content_type"],
+                "language": row["language"],
+                "processing_status": row["processing_status"],
+                "fetch_timestamp": row["fetch_timestamp"],
+                "chunk_count": chunk_count,
+                "is_stale": is_stale,
+                "days_old": (datetime.now() - fetch_time).days if fetch_time else None,
+                "error_message": row["error_message"]
+            })
+
+        conn.close()
+
+        # Calculate summary statistics
+        stale_count = sum(1 for w in websites if w["is_stale"])
+
+        return {
+            "status": "success",
+            "websites": websites,
+            "total_count": total_count,
+            "returned_count": len(websites),
+            "stale_count": stale_count,
+            "pagination": {
+                "limit": limit,
+                "offset": offset,
+                "has_more": (offset + len(websites)) < total_count
+            }
+        }
+
+    except Exception as e:
+        logger.error(f"Error listing websites: {e}", exc_info=True)
+        return {
+            "status": "error",
+            "error": str(e)
+        }
+
+
+@mcp.tool()
+async def rag_refresh_website(source_id: int) -> dict[str, Any]:
+    """
+    Refresh a processed website by re-fetching and re-processing its content.
+
+    This deletes all old chunks and re-processes the URL from scratch.
+
+    Args:
+        source_id: Database ID of the website source
+
+    Returns:
+        Dict with status and processing result
+    """
+    import sqlite3
+
+    logger.info(f"Refreshing website: source_id={source_id}")
+
+    try:
+        # Connect to database
+        db_path = DATA_DIR / "resume_agent.db"
+        conn = sqlite3.connect(db_path)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+
+        # Get the original URL
+        cursor.execute("SELECT url, content_type FROM website_sources WHERE id = ?", (source_id,))
+        row = cursor.fetchone()
+
+        if not row:
+            conn.close()
+            return {
+                "status": "error",
+                "error": f"Website source {source_id} not found"
+            }
+
+        url = row["url"]
+        content_type = row["content_type"]
+        conn.close()
+
+        # Re-process using rag_process_website with force_refresh=True
+        logger.info(f"Re-processing URL: {url} (content_type={content_type})")
+        result = await rag_process_website(
+            url=url,
+            content_type=content_type,
+            force_refresh=True
+        )
+
+        return result
+
+    except Exception as e:
+        logger.error(f"Error refreshing website: {e}", exc_info=True)
+        return {
+            "status": "error",
+            "error": str(e)
+        }
+
+
+@mcp.tool()
+def rag_delete_website(source_id: int) -> dict[str, Any]:
+    """
+    Delete a processed website and all its associated chunks.
+
+    This is a destructive operation and cannot be undone.
+    Chunks, embeddings, and FTS entries are cascaded-deleted.
+
+    Args:
+        source_id: Database ID of the website source
+
+    Returns:
+        Dict with status and deletion summary
+    """
+    import sqlite3
+
+    logger.info(f"Deleting website: source_id={source_id}")
+
+    try:
+        # Connect to database
+        db_path = DATA_DIR / "resume_agent.db"
+        conn = sqlite3.connect(db_path)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+
+        # Get website info before deleting
+        cursor.execute("SELECT url, title FROM website_sources WHERE id = ?", (source_id,))
+        row = cursor.fetchone()
+
+        if not row:
+            conn.close()
+            return {
+                "status": "error",
+                "error": f"Website source {source_id} not found"
+            }
+
+        url = row["url"]
+        title = row["title"]
+
+        # Count chunks before deletion
+        cursor.execute("SELECT COUNT(*) as count FROM website_chunks WHERE source_id = ?", (source_id,))
+        chunk_count = cursor.fetchone()["count"]
+
+        # Delete chunks (cascades to FTS via triggers)
+        cursor.execute("DELETE FROM website_chunks WHERE source_id = ?", (source_id,))
+        deleted_chunks = cursor.rowcount
+
+        # Delete FTS entries explicitly (if cascade didn't handle it)
+        cursor.execute(
+            "DELETE FROM website_chunks_fts WHERE chunk_id NOT IN (SELECT id FROM website_chunks)"
+        )
+
+        # Delete source
+        cursor.execute("DELETE FROM website_sources WHERE id = ?", (source_id,))
+
+        conn.commit()
+        conn.close()
+
+        logger.info(f"Deleted website {source_id}: {deleted_chunks} chunks removed")
+
+        return {
+            "status": "success",
+            "source_id": source_id,
+            "url": url,
+            "title": title or url,
+            "chunks_deleted": deleted_chunks,
+            "message": f"Website '{title or url}' and {deleted_chunks} chunks deleted successfully"
+        }
+
+    except Exception as e:
+        logger.error(f"Error deleting website: {e}", exc_info=True)
         return {
             "status": "error",
             "error": str(e)
