@@ -1,6 +1,0 @@
-# Python dependencies for Japanese Tutor Screenshot Watcher
-
-# Core dependencies
-watchdog>=3.0.0
-anthropic>=0.18.0
-pyyaml>=6.0.1

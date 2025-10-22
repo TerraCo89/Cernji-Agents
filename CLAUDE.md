@@ -22,7 +22,8 @@ Then configure Claude Desktop (see [QUICKSTART.md](QUICKSTART.md))
 
 - **[apps/resume-agent/](apps/resume-agent/)** - Career application MCP server
   - Single-file MCP server (UV + FastMCP + Claude Agent SDK)
-  - Tech Stack: Python 3.10+, UV (Astral), FastMCP 2.0, Claude Agent SDK
+  - Tech Stack: Python 3.10+, UV (Astral), FastMCP 2.0, Claude Agent SDK, sentence-transformers, sqlite-vec, langchain-text-splitters
+  - Features: Job analysis, Resume tailoring, Cover letter generation, **RAG pipeline for website processing**
   - Transport: HTTP Streamable (port 8080)
 
 - **[apps/observability-server/](apps/observability-server/)** - Event tracking server

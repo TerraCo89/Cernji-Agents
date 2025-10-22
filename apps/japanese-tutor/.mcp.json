@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "sqlite": {
+        "type": "stdio",
+        "command": "cmd",
+        "args": [
+            "/c",
+            "npx",
+            "-y",
+            "mcp-sqlite",
+            "D:\\source\\Cernji-Agents\\data\\japanese_agent.db"
+        ]
+    }
+  }
+}

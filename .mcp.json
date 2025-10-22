@@ -14,16 +14,41 @@
       ],
       "env": {}
     },
-    "sqlite": {
-        "type": "stdio",
-        "command": "cmd",
-        "args": [
-            "/c",
-            "npx",
-            "-y",
-            "mcp-sqlite",
-            "data\\resume_agent.db"
-        ]
+    "sqlite-resume": {
+      "type": "stdio",
+      "command": "cmd",
+      "args": [
+          "/c",
+          "npx",
+          "-y",
+          "mcp-sqlite",
+          "data\\resume_agent.db"
+      ]
+    },
+    "sqlite-japanese": {
+      "type": "stdio",
+      "command": "cmd",
+      "args": [
+          "/c",
+          "npx",
+          "-y",
+          "mcp-sqlite",
+          "data\\japanese_agent.db"
+      ]
+    },
+    "qdrant-vectors": {
+      "type": "stdio",
+      "command": "cmd",
+      "args": [
+          "/c",
+          "uvx",
+          "mcp-server-qdrant"
+      ],
+      "env": {
+        "QDRANT_URL": "http://localhost:6333",
+        "COLLECTION_NAME": "resume-agent-chunks",
+        "EMBEDDING_MODEL": "sentence-transformers/all-MiniLM-L6-v2"
+      }
     }
   }
 }
