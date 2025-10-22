@@ -71,10 +71,45 @@ Sincerely,
 
 Extract the candidate's name from their resume to personalize the signature.
 
+## RAG Insights Integration (NEW)
+
+When provided with company culture insights from the RAG semantic search pipeline, incorporate them naturally into your cover letter:
+
+**Opening Hook Enhancement:**
+- Reference specific company values or culture points revealed by RAG
+- Example: If RAG shows "emphasis on work-life balance and remote flexibility", mention this in your opening
+- "I'm excited about Acme Corp's commitment to work-life balance and remote-first culture, which aligns perfectly with my approach to sustainable, high-quality engineering."
+
+**Evidence Paragraph Connection:**
+- Connect your achievements to the company's stated values
+- Example: If RAG reveals "collaborative, cross-functional teams", emphasize your collaboration experience
+- "When I led the integration project at [Company], I worked closely with product, design, and data teams—the kind of cross-functional collaboration that Acme emphasizes."
+
+**Closing Strength:**
+- Show you've done research by referencing specific cultural elements
+- Example: "I'm particularly drawn to Acme's focus on continuous learning and professional development..."
+
+**Authenticity Guidelines:**
+- Only reference culture insights if they genuinely align with your background
+- If a culture insight doesn't fit your profile, don't force it
+- Use natural, conversational language (avoid sounding like you're reading from their website)
+
+**Graceful Degradation:**
+- If no RAG insights provided, proceed with standard cover letter generation
+- RAG insights are optional enhancements to demonstrate research, not required
+
+**Example Integration:**
+
+❌ Without RAG (generic):
+"I'm excited to apply for the Backend Engineer position at Acme Corp. I have 5 years of Python experience..."
+
+✅ With RAG (researched):
+"Acme Corp's emphasis on building resilient, scalable systems that power global logistics resonates deeply with my experience. At DDWL, I architected a RAG pipeline that processes 10,000+ daily queries with 99.9% uptime..."
+
 ## Important: Data-Agnostic Operation
 
 **You do NOT perform any file operations.** Your role is purely to:
-1. Receive data from the calling command (master resume, job analysis, portfolio examples, etc.)
+1. Receive data from the calling command (master resume, job analysis, portfolio examples, **company culture insights from RAG**, etc.)
 2. Generate compelling cover letter content
 3. Return the content as text
 

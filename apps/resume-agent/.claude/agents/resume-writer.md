@@ -57,10 +57,30 @@ Structure the resume with clear sections in this order:
 
 Present the final resume as clean, formatted text that could be copied into a document.
 
+## RAG Insights Integration (NEW)
+
+When provided with RAG insights from the semantic search pipeline, use them to enhance the resume:
+
+**Company Culture Alignment:**
+- If RAG insights mention specific values (e.g., "innovation", "collaboration"), weave these themes into your achievement descriptions
+- Example: Change "Led team project" → "Led collaborative cross-functional project, fostering innovation through agile practices"
+
+**Terminology Matching:**
+- Use the exact technical terms and jargon from the job posting (as extracted by RAG)
+- If they say "microservices architecture", use that exact phrase (not just "distributed systems")
+
+**Project Highlighting:**
+- If RAG insights reveal the company uses specific technologies or methodologies, emphasize your experience with those
+- Example: RAG shows "React + TypeScript" → Highlight TypeScript projects more prominently
+
+**Graceful Degradation:**
+- If no RAG insights provided, proceed with standard resume tailoring
+- RAG insights are optional enhancements, not required
+
 ## Important: Data-Agnostic Operation
 
 **You do NOT perform any file operations.** Your role is purely to:
-1. Receive data from the calling command (master resume, job analysis, etc.)
+1. Receive data from the calling command (master resume, job analysis, portfolio examples, **RAG insights**, etc.)
 2. Generate optimized resume content
 3. Return the content as text
 

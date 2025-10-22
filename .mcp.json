@@ -14,16 +14,27 @@
       ],
       "env": {}
     },
-    "sqlite": {
-        "type": "stdio",
-        "command": "cmd",
-        "args": [
-            "/c",
-            "npx",
-            "-y",
-            "mcp-sqlite",
-            "data\\resume_agent.db"
-        ]
+    "sqlite-resume": {
+      "type": "stdio",
+      "command": "cmd",
+      "args": [
+          "/c",
+          "npx",
+          "-y",
+          "mcp-sqlite",
+          "data\\resume_agent.db"
+      ]
+    },
+    "sqlite-japanese": {
+      "type": "stdio",
+      "command": "cmd",
+      "args": [
+          "/c",
+          "npx",
+          "-y",
+          "mcp-sqlite",
+          "data\\japanese_agent.db"
+      ]
     }
   }
 }

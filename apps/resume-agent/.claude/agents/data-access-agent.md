@@ -202,6 +202,35 @@ All write operations automatically validate data using Pydantic schemas:
 
 If validation fails, you'll receive a detailed error message. Pass this back to the caller so they can fix the data.
 
+## RAG Pipeline Operations
+
+The RAG (Retrieval Augmented Generation) pipeline processes websites (job postings, blogs, company pages) to extract structured information for job applications.
+
+### Core Concepts
+
+**WebsiteSource**: A fetched website with metadata
+- Fields: url, title, content_type (job_posting|blog_article|company_page), language (en|ja|mixed), raw_html, processing_status
+- Status: pending → processing → completed/failed
+
+**WebsiteChunk**: Semantically meaningful text segments from a website
+- Fields: source_id, chunk_index, content (50-5000 chars), metadata (headers, sections)
+- Optimized for semantic search and retrieval
+
+### Workflow
+
+1. **Process Website** → Extract HTML, detect language, chunk content, generate embeddings, store in database
+2. **Query Websites** → Semantic search across all processed content with hybrid scoring (vector + FTS)
+3. **Manage Library** → List, refresh, or delete processed websites
+
+### Data Validation (RAG Schemas)
+
+- **WebsiteSource**: Validates url, content_type, language, processing_status enums
+- **WebsiteChunk**: Validates content length (50-5000 chars), char_count matches actual length
+- **QueryResult**: Validates chunk results include source citations (100% of the time per FR-006)
+- **ExtractionMetadata**: Content-type-specific metadata (JobPostingMetadata, BlogArticleMetadata)
+
+All RAG data passes through Pydantic validation before being stored in the SQLite database.
+
 ## File System Abstraction
 
 **Important**: Never mention file paths, directory structures, or file extensions unless specifically requested. Your job is to provide a clean interface that hides these implementation details.

@@ -10,10 +10,14 @@ Job URL: $ARGUMENTS
 
 ## Complete Process
 
-**Phase 1: Fetch and Cache Job Data**
-1. Run `/career:fetch-job $ARGUMENTS` to fetch and cache the structured job data
-2. The fetch-job command creates the application directory and saves job-analysis.json
-3. The cached data includes: requirements, keywords, responsibilities, company info
+**Phase 1: Process Job Posting into RAG Pipeline**
+1. First, process the job posting URL into the RAG pipeline for semantic search:
+   - Run `/career:process-website $ARGUMENTS --type=job_posting`
+   - This extracts content, chunks it semantically, and makes it searchable
+   - Returns source_id for later querying
+2. Then run `/career:fetch-job $ARGUMENTS` to fetch and cache the structured job data
+3. The fetch-job command creates the application directory and saves job-analysis.json
+4. The cached data includes: requirements, keywords, responsibilities, company info
 
 **Phase 2: Load and Display Job Analysis**
 1. Use Task tool with subagent_type="data-access-agent"
@@ -64,17 +68,27 @@ This helps you confirm the job is worth applying to.
 2. Request: "Save tailored resume for {Company}, {Job Title}: {resume_content}"
 3. Optional: Include metadata about keywords used and changes made
 
+**Phase 7.5: Query Company Culture Insights (NEW - RAG Integration)**
+1. Before generating the cover letter, query the RAG pipeline for company-specific insights:
+   - Run `/career:query-websites "What is {Company Name}'s company culture, values, and work environment?" --type=job_posting --limit=5 --synthesize`
+   - This searches across the processed job posting for culture-related information
+   - The --synthesize flag generates an AI summary of the findings
+2. Store the culture insights for use in the cover letter
+3. If no results found, proceed without culture insights (graceful degradation)
+
 **Phase 8: Cover Letter Generation**
 1. Use the Task tool with subagent_type="cover-letter-writer" to create a compelling narrative
 2. Provide the cover letter writer with:
    - Master resume data (from Phase 3)
    - Job requirements from job analysis (from Phase 2)
    - Portfolio examples (from Phase 4)
+   - Company culture insights from RAG (from Phase 7.5) - **NEW**
 3. The cover letter writer should:
    - Return ONLY the cover letter content (no file operations)
    - Tell a compelling story about why you're interested
    - Mention at least one specific project with a link
    - Demonstrate cultural fit and enthusiasm
+   - **Incorporate company culture insights naturally** (if available)
 
 **Phase 9: Save Cover Letter**
 1. Use Task tool with subagent_type="data-access-agent"

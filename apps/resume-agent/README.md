@@ -50,8 +50,8 @@ Add to Claude Desktop's MCP configuration:
 - **Dependencies**: UV (PEP 723 inline dependencies)
 - **AI Orchestration**: Claude Agent SDK
 - **Validation**: Pydantic models
-- **Database**: SQLite with FTS5 and sqlite-vec for RAG
-- **Embeddings**: sentence-transformers (paraphrase-multilingual-MiniLM-L12-v2)
+- **Database**: SQLite with FTS5 for metadata/relations, Qdrant for vector embeddings
+- **Embeddings**: sentence-transformers (all-MiniLM-L6-v2, 384-dim)
 - **Chunking**: langchain-text-splitters (HTML + recursive strategies)
 
 ## Features
@@ -184,16 +184,19 @@ Manage your career history and achievements:
 - Fields: id, url, title, content_type, language, raw_html, metadata_json, fetch_timestamp, processing_status
 
 **website_chunks:**
-- Stores content chunks for semantic search
+- Stores content chunks and metadata
 - Fields: id, source_id, chunk_index, content, char_count, metadata_json, created_at
 
-**website_chunks_vec (sqlite-vec):**
-- Virtual table for vector embeddings
-- Fields: chunk_id, embedding (384-dim float array)
-
 **website_chunks_fts (FTS5):**
-- Full-text search index
+- Full-text search index for keyword matching
 - Fields: chunk_id, content
+
+**Qdrant Vector Store (External):**
+- Vector embeddings stored in Qdrant Docker container
+- Collection: `resume-agent-chunks`
+- Embeddings: 384-dim vectors (all-MiniLM-L6-v2 model)
+- Metadata: chunk_id, source_id, content_type, url, title
+- Accessed via mcp-server-qdrant MCP server
 
 ### Portfolio Library Tables
 
@@ -217,8 +220,18 @@ All file and database operations go through a centralized data access layer:
 
 ### RAG Pipeline Flow
 
-1. **Process**: URL → Fetch HTML → Detect Language → Chunk → Generate Embeddings → Store
-2. **Query**: Natural Language Query → Generate Embedding → Hybrid Search (Vector + FTS) → Rank → Return Results
+**Processing Workflow:**
+1. `/career:process-website` calls `rag_process_website()`
+2. Fetch HTML → Detect Language → Chunk content
+3. Store chunks in SQLite (metadata) + FTS index (keywords)
+4. For each chunk: Call `mcp__qdrant-vectors__qdrant-store` (generates embeddings, stores in Qdrant)
+
+**Query Workflow:**
+1. `/career:query-websites` orchestrates hybrid search:
+   - Call `mcp__qdrant-vectors__qdrant-find` → semantic matches (70% weight)
+   - Call `rag_query_websites()` → keyword matches via FTS (30% weight)
+2. Merge results by chunk_id, calculate combined scores
+3. Sort by score, filter by content type, return top N results
 
 ### Hybrid Search Strategy
 
@@ -245,25 +258,42 @@ final_score = (vector_score * 0.7) + (fts_score * 0.3)
 - `DATA_DIR` - Data directory path (default: "data/")
 - `ANTHROPIC_API_KEY` - Claude API key (for AI synthesis)
 
-### Database Path
+### Database Setup
 
-- SQLite database: `data/resume_agent.db`
-- Automatically created on first run
-- Tables created by migration script: `apps/resume-agent/scripts/create_rag_tables.py`
+**SQLite:**
+- Database: `data/resume_agent.db`
+- Tables created by: `apps/resume-agent/scripts/create_rag_tables.py`
+
+**Qdrant Vector Database:**
+- **Docker Setup Required**: See `apps/resume-agent/docs/qdrant-setup.md`
+- Default URL: `http://localhost:6333`
+- Collection: `resume-agent-chunks`
+- Embedding Model: `sentence-transformers/all-MiniLM-L6-v2` (384-dim)
+- MCP Server: Configured in `.mcp.json` as `qdrant-vectors`
+
+**Quick Start:**
+```bash
+# Start Qdrant Docker
+docker run -d --name qdrant -p 6333:6333 -p 6334:6334 \
+  -v $(pwd)/data/qdrant_storage:/qdrant/storage:z \
+  qdrant/qdrant
+
+# Verify Qdrant is running
+curl http://localhost:6333
+```
 
 ## Development
 
 ### Running Tests
 
 ```bash
-# Run all tests
-pytest apps/resume-agent/tests/
+# Run RAG + Qdrant integration tests
+uv run apps/resume-agent/scripts/test_rag_qdrant_integration.py
 
-# Run RAG pipeline tests
-pytest apps/resume-agent/tests/integration/test_rag_workflow.py
-
-# Run contract tests
-pytest apps/resume-agent/tests/contract/test_rag_mcp_tools.py
+# Prerequisites for tests:
+# 1. Qdrant Docker running (localhost:6333)
+# 2. Database initialized with RAG tables
+# 3. At least one website processed
 ```
 
 ### Database Migrations

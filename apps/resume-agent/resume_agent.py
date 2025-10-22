@@ -8,8 +8,8 @@
 #   "python-dotenv>=1.0.0",
 #   # RAG Pipeline Dependencies
 #   "sentence-transformers>=3.0.0",
-#   "sqlite-vec>=0.1.0",
 #   "langchain-text-splitters>=0.3.0",
+#   "qdrant-client>=1.7.0",
 # ]
 # requires-python = ">=3.10"
 # ///
@@ -1589,6 +1589,151 @@ resume_repo, career_repo, job_app_repo, portfolio_repo = get_storage_backend()
 
 
 # ============================================================================
+# QDRANT VECTOR STORE
+# ============================================================================
+
+class QdrantVectorStore:
+    """
+    Manages vector embeddings in Qdrant for semantic search.
+
+    Connects to Qdrant running in Docker at http://localhost:6333
+    Uses sentence-transformers/all-MiniLM-L6-v2 (384 dimensions)
+    """
+
+    def __init__(self, url: str = "http://localhost:6333", collection_name: str = "resume-agent-chunks"):
+        """
+        Initialize Qdrant connection.
+
+        Args:
+            url: Qdrant server URL
+            collection_name: Name of the collection for storing vectors
+        """
+        from qdrant_client import QdrantClient
+        from qdrant_client.models import Distance, VectorParams, PointStruct
+
+        self.client = QdrantClient(url=url)
+        self.collection_name = collection_name
+        self.vector_size = 384  # all-MiniLM-L6-v2 embedding dimension
+
+        # Create collection if it doesn't exist
+        try:
+            self.client.get_collection(collection_name)
+            logger.info(f"Connected to existing Qdrant collection: {collection_name}")
+        except Exception:
+            logger.info(f"Creating new Qdrant collection: {collection_name}")
+            self.client.create_collection(
+                collection_name=collection_name,
+                vectors_config=VectorParams(
+                    size=self.vector_size,
+                    distance=Distance.COSINE
+                )
+            )
+
+    def store_embeddings(
+        self,
+        chunk_ids: List[int],
+        embeddings: List[List[float]],
+        metadata: Optional[List[Dict[str, Any]]] = None
+    ) -> None:
+        """
+        Store embeddings in Qdrant.
+
+        Args:
+            chunk_ids: List of chunk IDs from website_chunks table
+            embeddings: List of embedding vectors (384 dimensions each)
+            metadata: Optional metadata for each chunk
+        """
+        from qdrant_client.models import PointStruct
+
+        if len(chunk_ids) != len(embeddings):
+            raise ValueError("chunk_ids and embeddings must have same length")
+
+        if metadata and len(metadata) != len(chunk_ids):
+            raise ValueError("metadata must have same length as chunk_ids")
+
+        points = []
+        for i, (chunk_id, embedding) in enumerate(zip(chunk_ids, embeddings)):
+            payload = metadata[i] if metadata else {}
+            payload["chunk_id"] = chunk_id
+
+            points.append(PointStruct(
+                id=chunk_id,
+                vector=embedding,
+                payload=payload
+            ))
+
+        self.client.upsert(
+            collection_name=self.collection_name,
+            points=points
+        )
+
+        logger.info(f"Stored {len(points)} embeddings in Qdrant")
+
+    def search_similar(
+        self,
+        query_embedding: List[float],
+        limit: int = 20,
+        score_threshold: Optional[float] = None
+    ) -> List[Dict[str, Any]]:
+        """
+        Search for similar vectors.
+
+        Args:
+            query_embedding: Query vector (384 dimensions)
+            limit: Maximum number of results
+            score_threshold: Minimum similarity score (optional)
+
+        Returns:
+            List of dicts with keys: chunk_id, score, metadata
+        """
+        search_result = self.client.search(
+            collection_name=self.collection_name,
+            query_vector=query_embedding,
+            limit=limit,
+            score_threshold=score_threshold
+        )
+
+        results = []
+        for hit in search_result:
+            results.append({
+                "chunk_id": hit.id,
+                "score": hit.score,
+                "metadata": hit.payload
+            })
+
+        return results
+
+    def delete_by_chunk_ids(self, chunk_ids: List[int]) -> None:
+        """
+        Delete vectors by chunk IDs.
+
+        Args:
+            chunk_ids: List of chunk IDs to delete
+        """
+        from qdrant_client.models import PointIdsList
+
+        self.client.delete(
+            collection_name=self.collection_name,
+            points_selector=PointIdsList(
+                points=chunk_ids
+            )
+        )
+
+        logger.info(f"Deleted {len(chunk_ids)} vectors from Qdrant")
+
+
+# Initialize Qdrant vector store
+try:
+    qdrant_url = os.getenv("QDRANT_URL", "http://localhost:6333")
+    qdrant_collection = os.getenv("QDRANT_COLLECTION", "resume-agent-chunks")
+    vector_store = QdrantVectorStore(url=qdrant_url, collection_name=qdrant_collection)
+    logger.info(f"Qdrant vector store initialized successfully")
+except Exception as e:
+    logger.error(f"Failed to initialize Qdrant vector store: {e}")
+    vector_store = None
+
+
+# ============================================================================
 # UTILITY FUNCTIONS
 # ============================================================================
 
@@ -2788,13 +2933,27 @@ async def rag_process_website(
         # Update status to 'processing' if exists, otherwise create new entry
         if existing:
             source_id = existing["id"]
+
+            # Get chunk IDs for Qdrant deletion before deleting from SQLite
+            cursor.execute("SELECT id FROM website_chunks WHERE source_id = ?", (source_id,))
+            old_chunk_ids = [row[0] for row in cursor.fetchall()]
+
+            # Delete old vectors from Qdrant
+            if vector_store is not None and old_chunk_ids:
+                try:
+                    logger.info(f"Deleting {len(old_chunk_ids)} old vectors from Qdrant")
+                    vector_store.delete_by_chunk_ids(old_chunk_ids)
+                except Exception as e:
+                    logger.error(f"Failed to delete old vectors from Qdrant: {e}")
+
             cursor.execute(
                 "UPDATE website_sources SET processing_status = 'processing', error_message = NULL WHERE id = ?",
                 (source_id,)
             )
-            # Delete old chunks
-            cursor.execute("DELETE FROM website_chunks WHERE source_id = ?", (source_id,))
+
+            # Delete old chunks from SQLite and FTS
             cursor.execute("DELETE FROM website_chunks_fts WHERE chunk_id IN (SELECT id FROM website_chunks WHERE source_id = ?)", (source_id,))
+            cursor.execute("DELETE FROM website_chunks WHERE source_id = ?", (source_id,))
         else:
             cursor.execute(
                 """INSERT INTO website_sources (url, content_type, language, raw_html, processing_status)
@@ -2868,26 +3027,13 @@ async def rag_process_website(
                 "error": "No valid chunks extracted from HTML. Content may be too short or improperly formatted."
             }
 
-        # Generate embeddings for all chunks
-        try:
-            chunk_texts = [chunk["content"] for chunk in chunks]
-            embeddings = generate_embeddings(chunk_texts)
-        except Exception as e:
-            cursor.execute(
-                "UPDATE website_sources SET processing_status = 'failed', error_message = ? WHERE id = ?",
-                (f"Failed to generate embeddings: {str(e)}", source_id)
-            )
-            conn.commit()
-            conn.close()
-            return {
-                "status": "error",
-                "error": f"Failed to generate embeddings: {str(e)}"
-            }
-
-        # Store chunks in database
+        # Store chunks in database and collect for Qdrant
+        # Note: Embeddings will be generated by Qdrant MCP server (not here)
         import json
-        for idx, (chunk, embedding) in enumerate(zip(chunks, embeddings)):
-            # Insert chunk
+        chunks_data = []  # For returning to slash command for Qdrant storage
+
+        for idx, chunk in enumerate(chunks):
+            # Insert chunk into SQLite
             cursor.execute(
                 """INSERT INTO website_chunks (source_id, chunk_index, content, char_count, metadata_json)
                    VALUES (?, ?, ?, ?, ?)""",
@@ -2895,13 +3041,48 @@ async def rag_process_website(
             )
             chunk_id = cursor.lastrowid
 
-            # Insert into FTS
+            # Insert into FTS for keyword search
             cursor.execute(
                 "INSERT INTO website_chunks_fts (chunk_id, content) VALUES (?, ?)",
                 (chunk_id, chunk["content"])
             )
 
-            # Note: website_chunks_vec will be populated separately once sqlite-vec is properly loaded
+            # Collect data for embedding generation
+            chunks_data.append({
+                "chunk_id": chunk_id,
+                "content": chunk["content"],
+                "metadata": {
+                    "source_id": source_id,
+                    "content_type": content_type,
+                    "url": url,
+                    "title": title,
+                    "chunk_index": idx,
+                    "char_count": chunk["char_count"]
+                }
+            })
+
+        # Generate embeddings and store in Qdrant
+        if vector_store is not None and chunks_data:
+            try:
+                logger.info(f"Generating embeddings for {len(chunks_data)} chunks")
+                chunk_texts = [c["content"] for c in chunks_data]
+                embeddings = generate_embeddings(chunk_texts)
+
+                logger.info(f"Storing {len(embeddings)} embeddings in Qdrant")
+                chunk_ids = [c["chunk_id"] for c in chunks_data]
+                chunk_metadata = [c["metadata"] for c in chunks_data]
+
+                vector_store.store_embeddings(
+                    chunk_ids=chunk_ids,
+                    embeddings=embeddings,
+                    metadata=chunk_metadata
+                )
+                logger.info(f"Successfully stored embeddings in Qdrant")
+            except Exception as e:
+                logger.error(f"Failed to store embeddings in Qdrant: {e}")
+                # Continue anyway - chunks are in SQLite and FTS, just no vector search
+        else:
+            logger.warning("Vector store not available - skipping embedding generation")
 
         # Update status to completed
         cursor.execute(
@@ -2924,7 +3105,8 @@ async def rag_process_website(
             "content_type": content_type,
             "language": language,
             "chunk_count": len(chunks),
-            "processing_time_seconds": round(processing_time, 2)
+            "processing_time_seconds": round(processing_time, 2),
+            "chunks_data": chunks_data  # For Qdrant storage by slash command
         }
 
     except Exception as e:
@@ -3063,6 +3245,22 @@ async def rag_query_websites(
                 "error": f"Failed to generate query embedding: {str(e)}"
             }
 
+        # Perform vector search using Qdrant
+        vector_results = {}
+        if vector_store is not None:
+            try:
+                logger.info(f"Performing vector search in Qdrant")
+                vector_hits = vector_store.search_similar(
+                    query_embedding=query_embedding,
+                    limit=20
+                )
+                # Convert Qdrant scores (higher = better) to dict
+                vector_results = {hit["chunk_id"]: hit["score"] for hit in vector_hits}
+                logger.info(f"Vector search returned {len(vector_results)} results")
+            except Exception as e:
+                logger.error(f"Vector search failed: {e}")
+                # Continue with FTS-only search
+
         # Perform FTS keyword search
         fts_query = query.replace('"', '""')  # Escape double quotes for FTS
         fts_sql = """
@@ -3075,13 +3273,12 @@ async def rag_query_websites(
         cursor.execute(fts_sql, (fts_query,))
         fts_results = {row["chunk_id"]: row["rank"] for row in cursor.fetchall()}
 
-        # For MVP, we'll skip vector search since sqlite-vec may not be installed yet
-        # In production, this would query the website_chunks_vec virtual table
-        # For now, we'll use FTS-only results
+        # Merge vector and FTS results
+        all_chunk_ids = set(vector_results.keys()) | set(fts_results.keys())
 
-        # Get chunk details for FTS results
-        if fts_results:
-            chunk_ids = list(fts_results.keys())
+        # Get chunk details for all results
+        if all_chunk_ids:
+            chunk_ids = list(all_chunk_ids)
             placeholders = ','.join('?' * len(chunk_ids))
 
             chunks_sql = f"""
@@ -3110,17 +3307,23 @@ async def rag_query_websites(
 
         conn.close()
 
+        # Normalize FTS scores (lower rank is better, convert to 0-1 where 1 is best)
+        max_fts_rank = max(fts_results.values()) if fts_results else 1.0
+
         # Calculate hybrid scores and format results
         results = []
         for chunk in chunks:
             chunk_id = chunk["id"]
 
-            # FTS score (lower is better for FTS5 rank)
-            fts_score = fts_results.get(chunk_id, 999.0)
+            # Vector score (Qdrant cosine similarity, 0-1 where 1 is best)
+            vector_score = vector_results.get(chunk_id, 0.0)
 
-            # For MVP without vector search, use FTS score only
-            # In production: combined_score = (vector_score * 0.7) + (normalized_fts_score * 0.3)
-            combined_score = fts_score
+            # FTS score (lower rank is better, normalize to 0-1 where 1 is best)
+            fts_rank = fts_results.get(chunk_id, max_fts_rank * 2)
+            normalized_fts_score = max(0.0, 1.0 - (fts_rank / max_fts_rank))
+
+            # Hybrid score: vector (70%) + FTS (30%), higher is better
+            combined_score = (vector_score * 0.7) + (normalized_fts_score * 0.3)
 
             # Parse metadata
             try:
@@ -3133,24 +3336,24 @@ async def rag_query_websites(
                 "source_id": chunk["source_id"],
                 "source_url": chunk["url"],
                 "content": chunk["content"],
-                "vector_score": 0.0,  # Placeholder for MVP
-                "fts_score": fts_score,
+                "vector_score": vector_score,
+                "fts_score": fts_rank,
                 "combined_score": combined_score,
                 "metadata": metadata
             })
 
-        # Sort by combined score (lower is better for FTS)
-        results.sort(key=lambda x: x["combined_score"])
+        # Sort by combined score (higher is better)
+        results.sort(key=lambda x: x["combined_score"], reverse=True)
 
         # Limit results
         results = results[:max_results]
 
-        # Calculate confidence level
+        # Calculate confidence level (higher combined_score is better)
         if not results:
             confidence_level = "low"
-        elif results[0]["combined_score"] < 5.0:
+        elif results[0]["combined_score"] > 0.7:
             confidence_level = "high"
-        elif results[0]["combined_score"] < 10.0:
+        elif results[0]["combined_score"] > 0.4:
             confidence_level = "medium"
         else:
             confidence_level = "low"
@@ -3406,18 +3609,28 @@ def rag_delete_website(source_id: int) -> dict[str, Any]:
         url = row["url"]
         title = row["title"]
 
-        # Count chunks before deletion
-        cursor.execute("SELECT COUNT(*) as count FROM website_chunks WHERE source_id = ?", (source_id,))
-        chunk_count = cursor.fetchone()["count"]
+        # Get chunk IDs for Qdrant deletion before deleting from SQLite
+        cursor.execute("SELECT id FROM website_chunks WHERE source_id = ?", (source_id,))
+        chunk_ids = [row[0] for row in cursor.fetchall()]
+        chunk_count = len(chunk_ids)
 
-        # Delete chunks (cascades to FTS via triggers)
+        # Delete vectors from Qdrant
+        if vector_store is not None and chunk_ids:
+            try:
+                logger.info(f"Deleting {len(chunk_ids)} vectors from Qdrant")
+                vector_store.delete_by_chunk_ids(chunk_ids)
+            except Exception as e:
+                logger.error(f"Failed to delete vectors from Qdrant: {e}")
+
+        # Delete FTS entries first (before chunks are deleted)
+        cursor.execute(
+            "DELETE FROM website_chunks_fts WHERE chunk_id IN (SELECT id FROM website_chunks WHERE source_id = ?)",
+            (source_id,)
+        )
+
+        # Delete chunks from SQLite
         cursor.execute("DELETE FROM website_chunks WHERE source_id = ?", (source_id,))
         deleted_chunks = cursor.rowcount
-
-        # Delete FTS entries explicitly (if cascade didn't handle it)
-        cursor.execute(
-            "DELETE FROM website_chunks_fts WHERE chunk_id NOT IN (SELECT id FROM website_chunks)"
-        )
 
         # Delete source
         cursor.execute("DELETE FROM website_sources WHERE id = ?", (source_id,))
