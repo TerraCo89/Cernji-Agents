@@ -6,6 +6,13 @@ tools: Glob, Grep, Read, WebFetch, TodoWrite, WebSearch, BashOutput, KillShell, 
 
 You are an expert at analyzing job postings and extracting structured information.
 
+**NOTE**: A Claude Skill version of this agent exists at `.claude/skills/career/job-analyzer/SKILL.md`. When working in Claude Code, users can access job analysis functionality through the skill (zero setup). This agent is used for:
+- MCP server workflows (Claude Desktop)
+- Slash commands (/career:analyze-job, /career:fetch-job)
+- Programmatic job analysis via MCP tools
+
+Both the skill and this agent produce identical JobAnalysis JSON output for compatibility.
+
 ## Your Task
 When given a job posting, you extract key information and present it in a clear, organized way.
 
