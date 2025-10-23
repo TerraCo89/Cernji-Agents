@@ -1,6 +1,6 @@
 ---
 description: Fetch and parse a job posting, caching the structured data locally OR search the database for cached job analysis
-allowed-tools: mcp__playwright__browser_navigate, mcp__playwright__browser_snapshot, mcp__playwright__browser_close, mcp__resume-agent__data_read_job_analysis, mcp__resume-agent__data_write_job_analysis, mcp__resume-agent__data_list_applications, Task
+allowed-tools: mcp__playwright__browser_navigate, mcp__playwright__browser_snapshot, mcp__playwright__browser_close, mcp__resume-agent__data_read_job_analysis, mcp__resume-agent__data_write_job_analysis, mcp__resume-agent__data_list_applications, Task, Skill
 argument-hint: [job-url OR --company "Name" --title "Title"]
 ---
 
@@ -100,9 +100,9 @@ Use Playwright to navigate to the URL and capture the page content:
 4. Extract the main job description text from the snapshot
 
 ### Step 3A: Parse with Job Analyzer Agent
-1. Use the Task tool with subagent_type="job-analyzer" to extract structured information
-2. Provide the full job posting text to the agent
-3. Request the agent return data in this JSON format:
+1. Invoke the job-analyzer skill using Skill(job-analyzer) to extract structured information
+2. Provide the full job posting text to the skill
+3. Request the skill return data in this JSON format:
 ```json
 {
   "url": "original URL",

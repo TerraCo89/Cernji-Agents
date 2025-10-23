@@ -1,9 +1,5 @@
 {
   "mcpServers": {
-    "resume-agent": {
-      "command": "uv",
-      "args": ["run", "D:\\source\\Cernji-Agents\\apps\\resume-agent\\resume_agent.py"]
-    },
     "playwright": {
       "type": "stdio",
       "command": "cmd",

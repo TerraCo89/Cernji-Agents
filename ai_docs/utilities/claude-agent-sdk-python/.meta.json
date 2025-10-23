@@ -1,0 +1,16 @@
+{
+  "library_name": "Claude Agent SDK (Python)",
+  "context7_id": "unknown",
+  "category": "utilities",
+  "last_updated": "2025-10-23T00:00:00Z",
+  "version": "latest",
+  "fetches": [
+    {
+      "topic": "general",
+      "file": "README.md",
+      "tokens": 0,
+      "fetched_at": "2025-10-18T00:00:00Z",
+      "note": "Migrated from root ai_docs/"
+    }
+  ]
+}
