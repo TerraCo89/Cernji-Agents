@@ -57,6 +57,34 @@ Located in `apps/resume-agent/.claude/agents/`:
 - `portfolio-finder.md` - GitHub portfolio search (data-agnostic)
 - `career-enhancer.md` - Career improvement suggestions
 
+### Claude Skills (Zero-Setup Usage)
+
+**NEW**: Career skills available in Claude Code 0.4.0+ without MCP server setup!
+
+**Available Skills:**
+- **job-analyzer** - Analyzes job postings to extract structured requirements, skills, and ATS keywords
+  - Location: `.claude/skills/career/job-analyzer/`
+  - Usage: "Analyze this job posting: [URL]"
+  - Autodiscovered by Claude Code (no manual invocation needed)
+  - Saves to: `job-applications/{Company}_{JobTitle}/job-analysis.json`
+
+**Coming Soon:**
+- resume-writer - Tailors master resume for specific job postings
+- cover-letter-writer - Generates personalized cover letters
+- portfolio-finder - Searches GitHub for relevant code examples
+- data-access - Centralized data operations with validation
+
+**Why Skills?**
+- ✅ Zero setup: Works instantly in Claude Code without MCP server configuration
+- ✅ Autodiscovery: Claude automatically selects the right skill for your task
+- ✅ Progressive disclosure: Detailed instructions loaded only when needed
+- ✅ Backward compatible: Works alongside existing MCP server
+
+**Migration Path:**
+- Skills and MCP server can coexist (same data files, different access methods)
+- Use skills for quick analysis in Claude Code
+- Use MCP server for full workflow automation in Claude Desktop
+
 ### Slash Commands (Direct CLI Usage)
 
 **Atomic Commands:**

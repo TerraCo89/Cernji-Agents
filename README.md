@@ -74,11 +74,28 @@ Cernji-Agents/                      # Repository root
 
 ## Quick Start
 
+### NEW: Claude Skills (Zero Setup)
+
+**Use career tools instantly in Claude Code 0.4.0+ without MCP server setup:**
+
+1. Open this repository in Claude Code
+2. Try: "Analyze this job posting: https://japan-dev.com/jobs/cookpad/senior-backend-engineer"
+3. Claude automatically discovers and uses the **job-analyzer** skill
+
+**Available Skills:**
+- `.claude/skills/career/job-analyzer/` - Job posting analysis
+
+**Coming Soon:** resume-writer, cover-letter-writer, portfolio-finder, data-access
+
+See [specs/005-decompose-mcp-to-skills/quickstart.md](specs/005-decompose-mcp-to-skills/quickstart.md) for testing guide.
+
+---
+
 ### Prerequisites
 
 - **Python 3.10+** with UV package manager
 - **Bun** (for observability server and client)
-- **Claude Desktop** (for MCP integration)
+- **Claude Desktop** (for MCP integration) OR **Claude Code 0.4.0+** (for skills)
 
 ### Starting the Complete System
 
