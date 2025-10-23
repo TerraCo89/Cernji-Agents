@@ -122,7 +122,7 @@ As a user managing career data, I want to update my master resume, add achieveme
 - **FR-002**: Each skill MUST include YAML frontmatter with name (max 64 chars) and description (max 1024 chars) following Claude Skills framework requirements
 - **FR-003**: Each skill MUST implement progressive disclosure with main SKILL.md under 500 lines and additional references in separate files
 - **FR-004**: Skills MUST reuse existing agent prompts from apps/resume-agent/.claude/agents/ without modification to preserve proven workflows
-- **FR-005**: Skills MUST be organized in a new directory structure: ai_docs/claude-skills/career/ or similar location distinct from MCP server
+- **FR-005**: Skills MUST be organized in a new directory structure: .claude/skills/ or similar location distinct from MCP server
 
 **Data Access Layer:**
 
@@ -190,7 +190,7 @@ As a user managing career data, I want to update my master resume, add achieveme
 
 ## Assumptions
 
-1. **Claude Code Native Support**: Assumes Claude Code 0.4.0+ supports custom skills as documented in ai_docs/claude-skills/
+1. **Claude Code Native Support**: Assumes Claude Code 0.4.0+ supports custom skills in .claude/skills/
 2. **Existing Data Compatibility**: Assumes current YAML/JSON file formats remain unchanged, enabling skills to read existing career data
 3. **Agent Prompt Reusability**: Assumes existing .claude/agents/ prompts can be embedded in SKILL.md files without modification
 4. **Progressive Disclosure**: Assumes skills can reference external files (references/*.md) and Claude Code will load them on-demand
@@ -240,7 +240,7 @@ As a user managing career data, I want to update my master resume, add achieveme
 
 - **Existing Agent Prompts**: apps/resume-agent/.claude/agents/ (job-analyzer.md, resume-writer.md, cover-letter-writer.md, portfolio-finder.md, data-access-agent.md)
 - **Current MCP Server**: apps/resume-agent/resume_agent.py (30+ MCP tools to decompose)
-- **Claude Skills Documentation**: ai_docs/claude-skills/ (overview.md, file-structure.md, cookbook-examples.md, best-practices.md)
+- **Claude Skills Documentation**: .claude/skills/ (SKILL.md files with YAML frontmatter)
 - **Project Constitution**: .specify/memory/constitution.md (architectural principles, testing requirements)
 - **Career Data Files**: resumes/kris-cernjavic-resume.yaml, resumes/career-history.yaml
 - **Database Schema**: apps/resume-agent/resume_agent.py (Pydantic models: PersonalInfo, Employment, MasterResume, JobAnalysis, etc.)

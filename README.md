@@ -83,9 +83,12 @@ Cernji-Agents/                      # Repository root
 3. Claude automatically discovers and uses the **job-analyzer** skill
 
 **Available Skills:**
-- `.claude/skills/career/job-analyzer/` - Job posting analysis
-
-**Coming Soon:** resume-writer, cover-letter-writer, portfolio-finder, data-access
+- `.claude/skills/job-analyzer/` - Job posting analysis with ATS keyword extraction
+- `.claude/skills/resume-writer/` - ATS-optimized resume tailoring for specific jobs
+- `.claude/skills/cover-letter-writer/` - Personalized cover letter generation
+- `.claude/skills/portfolio-finder/` - GitHub repository search for code examples
+- `.claude/skills/data-access/` - Centralized data layer with Pydantic validation
+- `.claude/skills/career-enhancer/` - Gap analysis and enhancement suggestions
 
 See [specs/005-decompose-mcp-to-skills/quickstart.md](specs/005-decompose-mcp-to-skills/quickstart.md) for testing guide.
 

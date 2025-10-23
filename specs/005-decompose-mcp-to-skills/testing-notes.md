@@ -12,7 +12,7 @@
 - [ ] Claude Code 0.4.0+ installed
 - [ ] Working directory: `D:\source\Cernji-Agents`
 - [ ] Internet connection active
-- [ ] `.claude/skills/career/job-analyzer/SKILL.md` exists
+- [ ] `.claude/skills/job-analyzer/SKILL.md` exists
 
 ### Test Case 1: Supported Job Board (japan-dev.com)
 
@@ -176,7 +176,7 @@
 
 **Solutions**:
 1. Verify you're in `D:\source\Cernji-Agents` directory
-2. Check `.claude/skills/career/job-analyzer/SKILL.md` exists
+2. Check `.claude/skills/job-analyzer/SKILL.md` exists
 3. Restart Claude Code session
 4. Try explicit invocation: "Use the job-analyzer skill to analyze [URL]"
 

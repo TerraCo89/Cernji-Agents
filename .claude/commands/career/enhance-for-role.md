@@ -1,6 +1,6 @@
 ---
 description: AI-driven analysis of how to improve your career history for a specific job posting
-allowed-tools: SlashCommand, Task, mcp__resume-agent__data_read_job_analysis, mcp__resume-agent__data_read_career_history
+allowed-tools: SlashCommand, Task, Skill, mcp__resume-agent__data_read_job_analysis, mcp__resume-agent__data_read_career_history
 ---
 
 # Enhance Career History for Target Role
@@ -51,11 +51,11 @@ Run these commands first:
 
 **Step 3: Invoke Career Enhancement Agent**
 
-Use the Task tool with subagent_type="career-enhancer":
+Invoke the career-enhancer skill using Skill(career-enhancer):
 
 ```
-Task(
-  subagent_type="career-enhancer",
+Skill(
+  command="career-enhancer",
   description="Analyze career enhancement opportunities",
   prompt="""
   Analyze the gap between this job posting and the candidate's career history.
@@ -88,7 +88,7 @@ Task(
 
 **Step 4: Present Analysis**
 
-The career-enhancer agent will return a detailed analysis.
+The career-enhancer skill will return a detailed analysis.
 Display it clearly with proper formatting.
 
 **Step 5: Interactive Implementation**
@@ -342,7 +342,7 @@ User: /career:enhance-for-role https://japan-dev.com/jobs/cookpad/...
 
 System fetches job (if not cached)
 System loads career history
-System invokes career-enhancer agent
+System invokes career-enhancer skill
 
 Agent returns:
 - 10 suggestions (3 high, 4 medium, 3 low impact)
@@ -403,7 +403,7 @@ Recommendation: Don't apply. Look for "Applied AI Engineer" or "ML Engineer" rol
 
 The command should produce:
 1. **Loading status** (fetching job, loading data)
-2. **Enhancement analysis** (from career-enhancer agent)
+2. **Enhancement analysis** (from career-enhancer skill)
 3. **Interactive implementation** (if user wants)
 4. **Progress tracking** (what was changed)
 5. **Final recommendation** (apply or not)

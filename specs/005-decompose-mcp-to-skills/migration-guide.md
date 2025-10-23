@@ -281,7 +281,7 @@ Claude: [Reads job-analysis.json created by skill, tailors resume]
 **Cause**: Skills directory not in correct location or Claude Code version <0.4.0
 
 **Solutions**:
-1. Verify `.claude/skills/career/job-analyzer/SKILL.md` exists
+1. Verify `.claude/skills/job-analyzer/SKILL.md` exists
 2. Upgrade Claude Code to 0.4.0+
 3. Restart Claude Code session (skill discovery happens at startup)
 4. Try explicit invocation: "Use the job-analyzer skill to analyze [URL]"

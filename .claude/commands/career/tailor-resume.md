@@ -1,6 +1,6 @@
 ---
 description: Tailor your resume for a specific job posting
-allowed-tools: SlashCommand, Task
+allowed-tools: SlashCommand, Task, Skill
 argument-hint: [job-url]
 ---
 
@@ -27,9 +27,9 @@ Use the Task tool with subagent_type="data-access-agent" to load both datasets:
 The data-access-agent handles all file I/O and data validation.
 
 **Phase 3: Create Tailored Resume**
-Use the Task tool with subagent_type="resume-writer" to generate the tailored resume.
+Invoke the resume-writer skill using Skill(resume-writer).
 
-Provide the resume-writer agent with:
+Provide the resume-writer skill with:
 - Your complete master resume data (from Phase 2)
 - Structured job requirements from the job analysis (from Phase 2)
 - List of ATS keywords to incorporate
@@ -91,6 +91,6 @@ Resume saved and ready for submission.
 ## Important Notes
 
 - This command now uses the **data-access-agent** for all file operations
-- The resume-writer agent is now data-agnostic (receives data, returns content)
+- The resume-writer skill is data-agnostic (receives data, returns content)
 - All data is validated using Pydantic schemas before being saved
 - You don't need to know about file paths or directory structures

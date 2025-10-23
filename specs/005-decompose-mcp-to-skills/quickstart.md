@@ -35,7 +35,7 @@ Claude: "I can help with job analysis using the job-analyzer skill..."
 
 If skill isn't discovered:
 1. Verify you're in the `D:\source\Cernji-Agents` directory
-2. Check `.claude/skills/career/job-analyzer/SKILL.md` exists
+2. Check `.claude/skills/job-analyzer/SKILL.md` exists
 3. Restart Claude Code session
 
 ---
@@ -157,7 +157,7 @@ Claude: "I don't have a specific skill for that..."
 
 **Solutions**:
 1. **Verify directory**: Ensure you're in `D:\source\Cernji-Agents`
-2. **Check skill file**: Confirm `ai_docs/claude-skills/career/job-analyzer/SKILL.md` exists
+2. **Check skill file**: Confirm `.claude/skills/job-analyzer/SKILL.md` exists
 3. **Explicit invocation**: Try "Use the job-analyzer skill to analyze [URL]"
 4. **Restart Claude Code**: Skill discovery happens at session start
 
@@ -335,7 +335,7 @@ A: No. This skill requires Claude Code 0.4.0+ for skill discovery and code execu
 **Issues**: If you encounter problems not covered in this quickstart, check:
 1. `specs/005-decompose-mcp-to-skills/plan.md` - Implementation plan and design decisions
 2. `specs/005-decompose-mcp-to-skills/research.md` - Technical research and alternatives
-3. `.claude/skills/career/job-analyzer/SKILL.md` - Detailed skill instructions
+3. `.claude/skills/job-analyzer/SKILL.md` - Detailed skill instructions
 
 **Future Enhancements**:
 - Japanese job posting support

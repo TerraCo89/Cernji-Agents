@@ -39,12 +39,12 @@
 ### Pre-Research Gates (Before Phase 0)
 
 - [x] **Does this feature belong in an existing app or require a new one?**
-  - Belongs in NEW location: `ai_docs/claude-skills/career/` (skills are not apps, they're discoverable capabilities for Claude Code)
+  - Belongs in NEW location: `.claude/skills/` (skills are not apps, they're discoverable capabilities for Claude Code)
   - Not modifying existing `apps/resume-agent/` MCP server (both architectures coexist)
 
 - [x] **If new app: Is the complexity justified? (Current count → new count)**
   - NOT adding a new app (3 apps remain: resume-agent, observability-server, client)
-  - Adding skills directory structure (ai_docs/claude-skills/career/)
+  - Adding skills directory structure (.claude/skills/)
   - Justified: Skills provide zero-setup alternative to MCP server configuration
 
 - [x] **Can this be achieved without adding new dependencies?**
@@ -107,7 +107,7 @@ specs/005-decompose-mcp-to-skills/
 **MVP Skill Structure (job-analyzer only)**:
 
 ```
-ai_docs/claude-skills/career/
+.claude/skills/
 └── job-analyzer/
     ├── SKILL.md              # Main skill file with YAML frontmatter + instructions
     ├── references/
@@ -119,7 +119,7 @@ ai_docs/claude-skills/career/
 **Full Implementation (8+ skills - OUT OF SCOPE for this MVP)**:
 
 ```
-ai_docs/claude-skills/career/
+.claude/skills/
 ├── job-analyzer/          # MVP deliverable ✅
 │   └── SKILL.md
 ├── resume-writer/         # Future work
@@ -152,9 +152,9 @@ apps/resume-agent/
 
 **Structure Decision**:
 
-Creating a new `ai_docs/claude-skills/career/` directory for skill packages. This:
+Creating a new `.claude/skills/` directory for skill packages. This:
 1. Separates skills from MCP server architecture (apps/resume-agent/)
-2. Groups career-related skills together under career/ namespace
+2. Groups skills in the standard Claude Code skills location
 3. Follows Claude Skills framework structure (SKILL.md + references/ + scripts/)
 4. Enables both architectures to coexist (MCP server + skills)
 
@@ -183,7 +183,7 @@ Creating a new `ai_docs/claude-skills/career/` directory for skill packages. Thi
 ### Research Tasks
 
 1. **Claude Skills Framework Validation**
-   - Confirm ai_docs/claude-skills/ documentation is current for Claude Code 0.4.0+
+   - Confirm .claude/skills/ structure is correct for Claude Code 0.4.0+
    - Verify YAML frontmatter requirements (name, description field limits)
    - Test progressive disclosure pattern (SKILL.md → references/*.md loading)
    - **Output**: research.md section "Skills Framework Compatibility"
@@ -406,7 +406,7 @@ This structured data will be used by other skills (resume-writer, cover-letter-w
 
 **Solution**:
 1. Verify you're in the D:\source\Cernji-Agents directory
-2. Check ai_docs/claude-skills/career/job-analyzer/SKILL.md exists
+2. Check .claude/skills/job-analyzer/SKILL.md exists
 3. Try explicit skill invocation: "Use the job-analyzer skill to analyze [URL]"
 
 **Issue**: "Failed to fetch job posting"
@@ -449,7 +449,7 @@ For now, the job-analyzer skill provides the foundation for all career applicati
 
 **Expected Tasks (for reference)**:
 
-1. Create `ai_docs/claude-skills/career/job-analyzer/` directory
+1. Create `.claude/skills/job-analyzer/` directory
 2. Write `SKILL.md` with YAML frontmatter + instructions from job-analyzer.md
 3. Create `references/example-output.md` with sample JobAnalysis JSON
 4. Test skill invocation manually in Claude Code

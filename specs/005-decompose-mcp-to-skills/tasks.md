@@ -13,7 +13,7 @@
 - Include exact file paths in descriptions
 
 ## Path Conventions
-- **Skills directory**: `.claude/skills/career/job-analyzer/`
+- **Skills directory**: `.claude/skills/job-analyzer/`
 - **Source agent**: `apps/resume-agent/.claude/agents/job-analyzer.md`
 - **Test data**: `job-applications/{Company}_{JobTitle}/`
 
@@ -23,9 +23,9 @@
 
 **Purpose**: Initialize the skill package directory structure per Claude Skills framework
 
-- [X] T001 Create skill directory structure at .claude/skills/career/job-analyzer/
-- [X] T002 [P] Create references subdirectory at .claude/skills/career/job-analyzer/references/
-- [X] T003 [P] Create scripts subdirectory at .claude/skills/career/job-analyzer/scripts/ (optional, for future use)
+- [X] T001 Create skill directory structure at .claude/skills/job-analyzer/
+- [X] T002 [P] Create references subdirectory at .claude/skills/job-analyzer/references/
+- [X] T003 [P] Create scripts subdirectory at .claude/skills/job-analyzer/scripts/ (optional, for future use)
 
 **Checkpoint**: Skill package structure exists, ready for content creation
 
@@ -68,13 +68,13 @@
 - Observability (Principle IV): Relies on Claude Code's built-in logging
 - Simplicity (Principle VIII): Reuses existing agent prompt, minimal adaptation
 
-- [X] T007 [US1] Create SKILL.md with YAML frontmatter in .claude/skills/career/job-analyzer/SKILL.md
+- [X] T007 [US1] Create SKILL.md with YAML frontmatter in .claude/skills/job-analyzer/SKILL.md
 - [X] T008 [US1] Write skill description in YAML frontmatter (name: job-analyzer, description <1024 chars)
 - [X] T009 [US1] Extract core instructions from apps/resume-agent/.claude/agents/job-analyzer.md into SKILL.md
 - [X] T010 [US1] Add usage examples section to SKILL.md (Pattern 1: Direct URL, Pattern 2: Context-aware)
 - [X] T011 [US1] Add error handling guidance to SKILL.md (invalid URL, network failure, malformed HTML)
 - [X] T012 [US1] Add integration notes to SKILL.md (how output feeds resume-writer, cover-letter-writer future skills)
-- [X] T013 [P] [US1] Create example-output.md in .claude/skills/career/job-analyzer/references/example-output.md
+- [X] T013 [P] [US1] Create example-output.md in .claude/skills/job-analyzer/references/example-output.md
 - [X] T014 [P] [US1] Document JobAnalysis JSON structure in example-output.md with full field descriptions
 - [X] T015 [US1] Validate SKILL.md line count is <500 lines (Claude Skills best practice)
 - [X] T016 [US1] Validate YAML frontmatter: name ≤64 chars, description ≤1024 chars

@@ -8,7 +8,7 @@
 
 ## Skills Framework Compatibility
 
-**Question**: Can we use Claude Skills framework documented in ai_docs/claude-skills/ with Claude Code 0.4.0+?
+**Question**: Can we use Claude Skills framework in .claude/skills/ with Claude Code 0.4.0+?
 
 **Decision**: YES - Use Claude Skills framework as documented
 
@@ -256,7 +256,7 @@ Will include in quickstart.md:
 
 | Area | Decision | Status |
 |------|----------|--------|
-| Skills Framework | Use Claude Skills as documented in ai_docs/claude-skills/ | ✓ Validated |
+| Skills Framework | Use Claude Skills in .claude/skills/ directory | ✓ Validated |
 | Agent Prompt | Reuse job-analyzer.md with minor YAML frontmatter adaptations | ✓ Validated |
 | Data Access | Generate Python code that matches JobAnalysis schema, loose validation in MVP | ✓ Validated |
 | Testing | Manual testing with 3 documented test cases | ✓ Defined |

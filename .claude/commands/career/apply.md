@@ -1,6 +1,6 @@
 ---
 description: Complete job application workflow - analyzes job, tailors resume, generates cover letter, finds portfolio examples
-allowed-tools: SlashCommand, Task, Bash(gh:*)
+allowed-tools: SlashCommand, Task, Skill, Bash(gh:*)
 argument-hint: [job-url]
 ---
 
@@ -37,11 +37,11 @@ This helps you confirm the job is worth applying to.
 3. This provides your complete career background for the next phases
 
 **Phase 4: Portfolio Search**
-1. Use the Task tool with subagent_type="portfolio-finder" to search your GitHub repositories
+1. Invoke the portfolio-finder skill using Skill(portfolio-finder) to search your GitHub repositories
 2. Provide the portfolio-finder with:
    - Required skills from the job analysis (from Phase 2)
    - Preferred skills from the job analysis
-3. The portfolio-finder should:
+3. The portfolio-finder skill should:
    - Search for code examples demonstrating the key technologies
    - Return a structured list of relevant repositories and code snippets
    - NOT perform any file operations (just return the data)
@@ -52,12 +52,12 @@ This helps you confirm the job is worth applying to.
 3. This saves the portfolio findings for future reference
 
 **Phase 6: Resume Tailoring**
-1. Use the Task tool with subagent_type="resume-writer" to create an optimized resume
-2. Provide the resume-writer with:
+1. Invoke the resume-writer skill using Skill(resume-writer) to create an optimized resume
+2. Provide the resume-writer skill with:
    - Master resume data (from Phase 3)
    - Job requirements from job analysis (from Phase 2)
    - Portfolio examples (from Phase 4)
-3. The resume writer should:
+3. The resume-writer skill should:
    - Return ONLY the resume content (no file operations)
    - Incorporate keywords naturally
    - Emphasize relevant experience
@@ -77,13 +77,13 @@ This helps you confirm the job is worth applying to.
 3. If no results found, proceed without culture insights (graceful degradation)
 
 **Phase 8: Cover Letter Generation**
-1. Use the Task tool with subagent_type="cover-letter-writer" to create a compelling narrative
-2. Provide the cover letter writer with:
+1. Invoke the cover-letter-writer skill using Skill(cover-letter-writer) to create a compelling narrative
+2. Provide the cover-letter-writer skill with:
    - Master resume data (from Phase 3)
    - Job requirements from job analysis (from Phase 2)
    - Portfolio examples (from Phase 4)
    - Company culture insights from RAG (from Phase 7.5) - **NEW**
-3. The cover letter writer should:
+3. The cover-letter-writer skill should:
    - Return ONLY the cover letter content (no file operations)
    - Tell a compelling story about why you're interested
    - Mention at least one specific project with a link

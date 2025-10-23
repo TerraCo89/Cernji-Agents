@@ -1,6 +1,6 @@
 ---
 description: Generate a customized cover letter for a specific job
-allowed-tools: mcp__resume-agent__data_read_job_analysis, mcp__resume-agent__data_read_master_resume, mcp__resume-agent__data_write_cover_letter, Task
+allowed-tools: mcp__resume-agent__data_read_job_analysis, mcp__resume-agent__data_read_master_resume, mcp__resume-agent__data_write_cover_letter, Task, Skill
 argument-hint: [job-url]
 ---
 
@@ -28,10 +28,10 @@ Look for clues in the job posting about:
 - The tone of their posting (formal, casual, innovative, traditional)
 
 **Phase 3: Generate Cover Letter**
-Use the cover-letter-writer agent via Task tool:
+Invoke the cover-letter-writer skill:
 ```
-Task(
-  subagent_type="cover-letter-writer",
+Skill(
+  command="cover-letter-writer",
   description="Generate cover letter",
   prompt="Generate a compelling cover letter based on:
 
