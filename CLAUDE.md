@@ -26,6 +26,20 @@ Then configure Claude Desktop (see [QUICKSTART.md](QUICKSTART.md))
   - Features: Job analysis, Resume tailoring, Cover letter generation, **RAG pipeline for website processing**
   - Transport: HTTP Streamable (port 8080)
 
+- **[apps/resume-agent-langgraph/](apps/resume-agent-langgraph/)** - LangGraph Resume Agent (Experimental)
+  - Conversational agent powered by LangGraph
+  - Tech Stack: Python 3.11+, LangGraph, Anthropic/OpenAI SDK
+  - Features: Real-time chat interface, state management, multi-provider LLM support
+  - Deployment: LangGraph dev server (port 2024) with Studio UI
+  - Status: Development - evaluating LangGraph for production use
+
+- **[apps/agent-chat-ui/](apps/agent-chat-ui/)** - Web UI for LangGraph Resume Agent
+  - Real-time chat interface for Resume Agent
+  - Tech Stack: Next.js 15, React 19, TypeScript, TailwindCSS, LangGraph SDK
+  - Features: Streaming responses, message history, dark mode
+  - Port: 3000
+  - See: [SETUP.md](apps/agent-chat-ui/SETUP.md)
+
 - **[apps/observability-server/](apps/observability-server/)** - Event tracking server
   - Real-time event collection via HTTP POST
   - WebSocket broadcasting to connected clients

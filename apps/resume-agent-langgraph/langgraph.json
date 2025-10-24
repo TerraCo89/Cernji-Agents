@@ -1,0 +1,8 @@
+{
+  "dependencies": ["."],
+  "graphs": {
+    "resume_agent": "./resume_agent_langgraph.py:build_conversation_graph"
+  },
+  "env": ".env",
+  "python_version": "3.11"
+}

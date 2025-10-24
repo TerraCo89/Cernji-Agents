@@ -45,6 +45,19 @@
         "COLLECTION_NAME": "resume-agent-chunks",
         "EMBEDDING_MODEL": "sentence-transformers/all-MiniLM-L6-v2"
       }
+    },
+    "resume-agent-langgraph": {
+      "type": "stdio",
+      "command": "cmd",
+      "args": [
+        "/c",
+        "cd /d D:\\source\\Cernji-Agents\\apps\\resume-agent-langgraph && uv run resume_agent_langgraph.py"
+      ],
+      "env": {
+        "ANTHROPIC_API_KEY": "YOUR_API_KEY_HERE",
+        "STORAGE_BACKEND": "sqlite",
+        "OBSERVABILITY_SERVER_URL": "http://localhost:3001"
+      }
     }
   }
 }
