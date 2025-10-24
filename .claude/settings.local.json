@@ -61,7 +61,9 @@
       "Bash(chcp 65001)",
       "Bash(export PYTHONIOENCODING=utf-8)",
       "Skill(doc-fetcher)",
-      "Bash(uv python list:*)"
+      "Bash(uv python list:*)",
+      "Bash(git branch:*)",
+      "Bash(git log:*)"
     ],
     "deny": [],
     "ask": []
