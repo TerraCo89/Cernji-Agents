@@ -20,7 +20,10 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import TypedDict, Annotated
-from operator import add
+
+# Add src to path for imports
+sys.path.insert(0, str(Path(__file__).parent / "src"))
+from resume_agent.llm.messages import convert_langgraph_messages_to_api_format
 
 # Fix Windows console encoding for emoji support
 if sys.platform == "win32":
@@ -30,7 +33,9 @@ if sys.platform == "win32":
 
 # Third-party imports
 from langgraph.graph import StateGraph, START, END
+from langgraph.graph.message import add_messages
 from langgraph.checkpoint.memory import MemorySaver
+from langchain_core.messages import AIMessage, HumanMessage, BaseMessage
 import anthropic
 import openai
 from dotenv import load_dotenv
@@ -51,10 +56,10 @@ class ConversationState(TypedDict):
     """
     State for conversational agent.
 
-    Uses Annotated[list, add] for messages to append (not replace) messages.
-    This is the standard LangGraph pattern for chat history.
+    Uses Annotated[list[BaseMessage], add_messages] for messages.
+    This is the standard LangGraph pattern for chat history with proper message handling.
     """
-    messages: Annotated[list, add]  # Chat history (append-only)
+    messages: Annotated[list[BaseMessage], add_messages]  # Chat history (append-only)
     should_continue: bool  # Whether to continue conversation
 
 
@@ -127,14 +132,9 @@ def chat_node(state: ConversationState) -> dict:
     print(f"\n🤖 Thinking... ({provider_name}/{model_name})")
 
     try:
-        # Build messages list for API
-        # Format: [{"role": "user", "content": "..."}, {"role": "assistant", "content": "..."}]
-        api_messages = []
-        for msg in state["messages"]:
-            api_messages.append({
-                "role": msg["role"],
-                "content": msg["content"]
-            })
+        # Convert LangGraph SDK message format to API format
+        # This handles both {"type": "human"} and {"role": "user"} formats
+        api_messages = convert_langgraph_messages_to_api_format(state["messages"])
 
         # System prompt: Define the agent's personality and capabilities
         system_prompt = """You are a helpful Resume Agent assistant. Right now you're in development mode,
@@ -154,20 +154,15 @@ For now, just have a nice conversation!"""
         assistant_message = call_llm(api_messages, system_prompt)
 
         # Return as partial state update (will be appended to messages)
+        # IMPORTANT: Use AIMessage object, not plain dict, for LangGraph SDK compatibility
         return {
-            "messages": [{
-                "role": "assistant",
-                "content": assistant_message
-            }]
+            "messages": [AIMessage(content=assistant_message)]
         }
 
     except Exception as e:
         print(f"\n❌ Error: {e}")
         return {
-            "messages": [{
-                "role": "assistant",
-                "content": f"Sorry, I encountered an error: {str(e)}"
-            }]
+            "messages": [AIMessage(content=f"Sorry, I encountered an error: {str(e)}")]
         }
 
 
@@ -190,8 +185,11 @@ def get_user_input_node(state: ConversationState) -> dict:
     # Display last assistant message
     if state["messages"]:
         last_msg = state["messages"][-1]
-        if last_msg["role"] == "assistant":
-            print(f"\n🤖 Assistant: {last_msg['content']}")
+        # Handle both message objects and dicts (for compatibility)
+        msg_type = getattr(last_msg, 'type', None) or last_msg.get("role", None)
+        msg_content = getattr(last_msg, 'content', None) or last_msg.get("content", "")
+        if msg_type in ["ai", "assistant"]:
+            print(f"\n🤖 Assistant: {msg_content}")
 
     # Get user input
     print("\n" + "="*60)
@@ -202,19 +200,14 @@ def get_user_input_node(state: ConversationState) -> dict:
         print("\n👋 Goodbye! Thanks for chatting!\n")
         return {
             "should_continue": False,
-            "messages": [{
-                "role": "user",
-                "content": user_input
-            }]
+            "messages": [HumanMessage(content=user_input)]
         }
 
     # Return user message
+    # IMPORTANT: Use HumanMessage object, not plain dict, for LangGraph SDK compatibility
     return {
         "should_continue": True,
-        "messages": [{
-            "role": "user",
-            "content": user_input
-        }]
+        "messages": [HumanMessage(content=user_input)]
     }
 
 
@@ -277,6 +270,36 @@ def build_conversation_graph() -> StateGraph:
 
     # Loop: chat back to get_input
     graph.add_edge("chat", "get_input")
+
+    # Compile with memory checkpointer
+    checkpointer = MemorySaver()
+    app = graph.compile(checkpointer=checkpointer)
+
+    return app
+
+
+def build_web_conversation_graph() -> StateGraph:
+    """
+    Build web-compatible conversational agent (no CLI input).
+
+    Flow:
+    1. START -> chat: Process incoming message
+    2. chat -> END: Return response
+
+    Messages come from HTTP requests (already in state).
+    No get_input node needed.
+
+    Returns:
+        Compiled StateGraph with checkpointer
+    """
+    graph = StateGraph(ConversationState)
+
+    # Add only the chat node (no get_input!)
+    graph.add_node("chat", chat_node)
+
+    # Simple flow: START -> chat -> END
+    graph.add_edge(START, "chat")
+    graph.add_edge("chat", END)
 
     # Compile with memory checkpointer
     checkpointer = MemorySaver()
@@ -351,3 +374,17 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+# ==============================================================================
+# LangGraph API Entry Point
+# ==============================================================================
+
+def build_graph():
+    """
+    Entry point for LangGraph API server.
+    
+    This function is called by langgraph.json to build the graph.
+    Returns the web-compatible conversation graph.
+    """
+    return build_web_conversation_graph()

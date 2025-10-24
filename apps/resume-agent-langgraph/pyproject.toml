@@ -10,6 +10,8 @@ requires-python = ">=3.11"
 dependencies = [
     "langgraph>=0.2.0",
     "fastmcp>=2.0.0",
+    "fastapi>=0.115.0",  # Required for FastAPI server
+    "uvicorn[standard]>=0.32.0",  # Required for FastAPI server
     "anthropic>=0.39.0",
     "openai>=1.0.0",
     "pydantic>=2.0.0",

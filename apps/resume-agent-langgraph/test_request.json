@@ -1,0 +1,12 @@
+{
+  "assistant_id": "resume_agent",
+  "input": {
+    "messages": [
+      {
+        "role": "user",
+        "content": "Hello! Can you help me with my resume?"
+      }
+    ]
+  },
+  "stream_mode": "values"
+}

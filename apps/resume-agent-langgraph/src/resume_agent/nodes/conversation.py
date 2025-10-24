@@ -1,7 +1,7 @@
 """Conversation nodes for chat functionality."""
 
 from ..state import ConversationState
-from ..llm import call_llm, get_provider_info
+from ..llm import call_llm, get_provider_info, convert_langgraph_messages_to_api_format
 from ..prompts import CONVERSATION_SYSTEM
 
 
@@ -19,13 +19,9 @@ def chat_node(state: ConversationState) -> dict:
     print(f"\n🤖 Thinking... ({provider_name}/{model_name})")
 
     try:
-        # Build messages list for API
-        api_messages = []
-        for msg in state["messages"]:
-            api_messages.append({
-                "role": msg["role"],
-                "content": msg["content"]
-            })
+        # Convert LangGraph SDK message format to API format
+        # This handles both {"type": "human"} and {"role": "user"} formats
+        api_messages = convert_langgraph_messages_to_api_format(state["messages"])
 
         # Call LLM
         assistant_message = call_llm(api_messages, CONVERSATION_SYSTEM)
