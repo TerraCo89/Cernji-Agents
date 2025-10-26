@@ -389,81 +389,151 @@ class ResumeAgentState(TypedDict):
 
 ### Phase 3: Data Access Layer
 
-**Objective:** Connect to career data sources (YAML files and SQLite database).
+**Objective:** Connect to career data sources from SQLite database.
+
+**Note:** This project uses a database-first architecture. All data (resume, career history, job analyses, portfolio) is stored in SQLite at `data/resume_agent.db`.
 
 #### Tasks
 
-- [ ] **Create Data Access Module**
-  - File: Create `src/resume_agent/data/access.py`
-  - Add YAML reading utilities using `pyyaml`
-  - Add SQLite connection pooling
+- [ ] **Reuse Existing Data Access Layer**
+  - **Design Decision:** Import and call data access functions directly from the MCP server (single source of truth)
+  - Import from `apps/resume-agent/resume_agent.py`
+  - All `data_read_*`, `data_write_*`, and `data_*` utility functions available
+  - See Phase 1 documentation (`docs/architecture-decisions.md`) for rationale
+
+- [ ] **Create Data Access Wrapper Module** (Optional)
+  - File: Create `src/resume_agent/data/access.py` (thin wrapper if needed)
+  - Import functions from MCP server: `from resume_agent import data_read_master_resume, data_read_job_analysis, etc.`
+  - Add SQLite connection utilities for direct queries if needed
+  - Database location: `data/resume_agent.db`
 
 - [ ] **Add Data Loading Functions**
-  - `load_master_resume() -> Resume` - Read from `resumes/master-resume.yaml`
-  - `load_career_history() -> dict` - Read from `resumes/career-history.yaml`
-  - `get_job_analysis(job_url: str) -> JobAnalysis | None` - Query SQLite cache
+  - `load_master_resume() -> Resume` - Call `data_read_master_resume()` from MCP server
+  - `load_career_history() -> dict` - Call `data_read_career_history()` from MCP server
+  - `get_job_analysis(job_url: str) -> JobAnalysis | None` - Call `data_read_job_analysis()` from MCP server
+  - `search_portfolio(tech: str) -> list[dict]` - Call `data_search_portfolio_examples()` from MCP server
 
 - [ ] **Test Data Loading**
   - Create `tests/test_data_access.py`
-  - Test file reading with actual resume files
-  - Test database queries with sample data
+  - Test data loading functions with real database
+  - Verify data structure matches state schema TypedDicts
+  - Create contract tests to verify MCP server function signatures
 
-#### Code Snippet: Data Access
+- [ ] **Validate Database Schema**
+  - Verify database exists at `apps/resume-agent-langgraph/data/resume_agent.db`
+  - Check all required tables exist (see `docs/database-schema.md` for complete schema)
+  - Key tables: `master_resume`, `career_history`, `job_analyses`, `portfolio_examples`, `applications`, etc.
+
+#### Code Snippet: Data Access (Reusing MCP Server)
 
 ```python
-import yaml
-import sqlite3
+import sys
 from pathlib import Path
 from typing import Optional
 
+# Add MCP server to path for direct imports
+sys.path.append(str(Path(__file__).parent.parent.parent.parent / "apps" / "resume-agent"))
+
+# Import existing data access functions (single source of truth)
+from resume_agent import (
+    # Read functions
+    data_read_master_resume,
+    data_read_career_history,
+    data_read_job_analysis,
+    data_search_portfolio_examples,
+
+    # Write functions (if needed for saving tailored resumes, etc.)
+    data_write_job_analysis,
+    data_write_tailored_resume,
+    data_write_cover_letter,
+
+    # Utility functions
+    data_list_applications,
+    data_get_application_summary,
+)
+
 # Configuration
-RESUMES_DIR = Path(__file__).parent.parent.parent.parent / "resumes"
 DB_PATH = Path(__file__).parent.parent.parent.parent / "data" / "resume_agent.db"
 
 def load_master_resume() -> dict:
-    """Load master resume from YAML file."""
-    resume_path = RESUMES_DIR / "master-resume.yaml"
-    with open(resume_path, 'r', encoding='utf-8') as f:
-        return yaml.safe_load(f)
+    """
+    Load master resume from SQLite database.
+
+    Reuses existing MCP server function for single source of truth.
+    """
+    result = data_read_master_resume()
+
+    if result.get("status") == "error":
+        raise ValueError(f"Failed to load master resume: {result.get('message')}")
+
+    return result.get("data")
+
 
 def load_career_history() -> dict:
-    """Load career history from YAML file."""
-    history_path = RESUMES_DIR / "career-history.yaml"
-    with open(history_path, 'r', encoding='utf-8') as f:
-        return yaml.safe_load(f)
+    """
+    Load career history from SQLite database.
 
-def get_job_analysis(job_url: str) -> Optional[dict]:
+    Returns dict with employment history, skills, and achievements.
+    """
+    result = data_read_career_history()
+
+    if result.get("status") == "error":
+        raise ValueError(f"Failed to load career history: {result.get('message')}")
+
+    return result.get("data")
+
+
+def get_job_analysis(company: str, job_title: str) -> Optional[dict]:
     """
     Retrieve cached job analysis from SQLite database.
 
     Args:
-        job_url: URL of the job posting
+        company: Company name
+        job_title: Job title
 
     Returns:
         Job analysis dict if cached, None otherwise
     """
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    cursor = conn.cursor()
+    result = data_read_job_analysis(company=company, job_title=job_title)
 
-    cursor.execute("""
-        SELECT analysis_json
-        FROM job_analyses
-        WHERE job_url = ?
-        ORDER BY created_at DESC
-        LIMIT 1
-    """, (job_url,))
+    # Returns None if not found (not an error)
+    if result.get("status") == "not_found":
+        return None
 
-    row = cursor.fetchone()
-    conn.close()
+    if result.get("status") == "error":
+        raise ValueError(f"Failed to read job analysis: {result.get('message')}")
 
-    if row:
-        import json
-        return json.loads(row['analysis_json'])
-    return None
+    return result.get("data")
+
+
+def search_portfolio_by_tech(technology: str, limit: int = 10) -> list[dict]:
+    """
+    Search portfolio examples by technology.
+
+    Args:
+        technology: Technology name (e.g., "Python", "React", "PostgreSQL")
+        limit: Maximum number of examples to return
+
+    Returns:
+        List of portfolio example dicts
+    """
+    result = data_search_portfolio_examples(tech=technology, limit=limit)
+
+    if result.get("status") == "error":
+        return []  # Return empty list on error, don't fail
+
+    return result.get("examples", [])
 ```
 
-**Link:** See MCP server data access in `apps/resume-agent/resume_agent.py:150-200`
+**Architecture Note:**
+
+This approach follows **Decision 3** from `docs/architecture-decisions.md`:
+- **70% Code Reuse**: Import and call existing data access functions directly
+- **Single Source of Truth**: Database access logic in one place (MCP server)
+- **No Duplication**: Don't rewrite 21 data access functions
+- **Consistency**: Both MCP server and LangGraph agent use same DAL
+
+**Link:** See MCP server data access in `apps/resume-agent/resume_agent.py` (search for `@mcp.tool()` decorated functions starting with `data_`)
 
 ---
 

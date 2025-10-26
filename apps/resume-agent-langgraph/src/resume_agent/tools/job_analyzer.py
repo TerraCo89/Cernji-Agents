@@ -5,7 +5,7 @@ from datetime import datetime
 from typing import Any
 
 import httpx
-
+from langchain_core.tools import tool
 
 def fetch_job_posting(job_url: str) -> str:
     """
@@ -160,29 +160,15 @@ def parse_job_posting(job_content: str) -> dict[str, Any]:
     return result
 
 
+@tool
 def analyze_job_posting(job_url: str) -> dict[str, Any]:
-    """
-    Fetch and analyze a job posting from a URL.
-
-    This is the main entry point that combines fetching and parsing.
-    It handles errors gracefully and returns all job information plus metadata.
+    """Fetch and analyze a job posting from a URL.
 
     Args:
         job_url: URL of the job posting to analyze
 
     Returns:
-        Dictionary containing:
-        - All fields from parse_job_posting()
-        - url: Original job URL
-        - fetched_at: ISO 8601 timestamp
-        - errors: List of error messages (empty if successful)
-
-    Example:
-        >>> result = analyze_job_posting("https://example.com/job/123")
-        >>> print(result["company"])
-        "Example Corp"
-        >>> print(result["errors"])
-        []
+        Dictionary containing job information including company, title, requirements, skills, and responsibilities.
     """
     errors: list[str] = []
 

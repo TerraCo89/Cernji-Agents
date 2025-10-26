@@ -3,36 +3,19 @@
 import re
 from typing import Any
 
+from langchain_core.tools import tool
 
+
+@tool
 def calculate_keyword_match(resume_text: str, job_keywords: list[str]) -> dict[str, Any]:
-    """
-    Calculate what percentage of job keywords appear in resume.
-
-    This function performs case-insensitive keyword matching to determine
-    how well a resume matches the job requirements. It's useful for
-    understanding ATS (Applicant Tracking System) compatibility.
+    """Calculate what percentage of job keywords appear in resume.
 
     Args:
         resume_text: Full text content of the resume
         job_keywords: List of keywords from job analysis
 
     Returns:
-        Dictionary containing:
-        - matched_keywords: list[str] - keywords found in resume
-        - missing_keywords: list[str] - keywords NOT in resume
-        - match_score: float - percentage (0-100)
-        - match_count: int - number of matches
-        - total_keywords: int - total keywords
-
-    Example:
-        >>> result = calculate_keyword_match(
-        ...     "Python developer with Django experience",
-        ...     ["Python", "Django", "React"]
-        ... )
-        >>> result["match_score"]
-        66.67
-        >>> result["matched_keywords"]
-        ["Python", "Django"]
+        Dictionary with matched_keywords, missing_keywords, match_score, match_count, and total_keywords.
     """
     if not job_keywords:
         return {
@@ -69,47 +52,16 @@ def calculate_keyword_match(resume_text: str, job_keywords: list[str]) -> dict[s
     }
 
 
+@tool
 def calculate_ats_score(resume_data: dict[str, Any], job_analysis: dict[str, Any]) -> dict[str, Any]:
-    """
-    Calculate overall ATS score combining multiple scoring factors.
-
-    This function provides a comprehensive ATS compatibility score by
-    evaluating keyword match, skills alignment, and experience relevance.
-    The scoring is weighted to prioritize the most important factors.
-
-    Scoring weights:
-    - Keyword match: 40%
-    - Skills match: 30%
-    - Experience relevance: 30%
+    """Calculate overall ATS score combining keyword match (40%), skills match (30%), and experience relevance (30%).
 
     Args:
-        resume_data: Dictionary containing resume content and metadata
-                     Expected keys: "content" (str), "skills" (list[str])
-        job_analysis: Dictionary from job analysis tool
-                      Expected keys: "keywords" (list[str]), "skills" (list[str]),
-                                    "requirements" (list[str])
+        resume_data: Dictionary with 'content' (str) and 'skills' (list[str])
+        job_analysis: Dictionary with 'keywords', 'skills', and 'requirements' lists
 
     Returns:
-        Dictionary containing:
-        - overall_score: int (0-100) - weighted average score
-        - keyword_score: int (0-100) - keyword match percentage
-        - skills_score: int (0-100) - skills match percentage
-        - experience_score: int (0-100) - experience relevance score
-        - recommendations: list[str] - improvement suggestions
-
-    Example:
-        >>> job_analysis = {
-        ...     "keywords": ["Python", "Django", "REST API"],
-        ...     "skills": ["Python", "Docker", "PostgreSQL"],
-        ...     "requirements": ["5 years experience", "Team leadership"]
-        ... }
-        >>> resume = {
-        ...     "content": "Python developer with Django and REST API experience...",
-        ...     "skills": ["Python", "Django", "Git"]
-        ... }
-        >>> result = calculate_ats_score(resume, job_analysis)
-        >>> result["overall_score"]
-        78
+        Dictionary with overall_score, keyword_score, skills_score, experience_score, and recommendations.
     """
     # Extract resume content and skills
     resume_content = resume_data.get("content", "")
