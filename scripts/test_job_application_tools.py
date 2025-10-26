@@ -29,7 +29,7 @@ os.environ["STORAGE_BACKEND"] = "sqlite"
 os.environ["SQLITE_DATABASE_PATH"] = "./data/resume_agent.db"
 os.environ["USER_ID"] = "default"
 
-from resume_agent import (
+from resume_agent_langgraph import (
     data_list_applications,
     data_read_job_analysis,
     data_get_application_path,

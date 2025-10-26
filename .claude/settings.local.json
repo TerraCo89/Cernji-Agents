@@ -60,7 +60,10 @@
       "Skill(skill-creator)",
       "Bash(chcp 65001)",
       "Bash(export PYTHONIOENCODING=utf-8)",
-      "Skill(doc-fetcher)"
+      "Skill(doc-fetcher)",
+      "Bash(uv python list:*)",
+      "Bash(git branch:*)",
+      "Bash(git log:*)"
     ],
     "deny": [],
     "ask": []
@@ -172,5 +175,6 @@
         ]
       }
     ]
-  }
+  },
+  "outputStyle": "default"
 }

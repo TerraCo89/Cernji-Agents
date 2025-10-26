@@ -1,37 +1,51 @@
 # Stop Multi-App System
-# Stops observability-server and web client processes
+# Stops all system components:
+# - Resume Agent LangGraph (port 2024)
+# - Agent Chat UI (port 3000)
+# - Observability Server (port 4000)
+# - Web Dashboard (port 5173)
 
 Write-Host "`n=== Stopping Multi-App System ===" -ForegroundColor Yellow
 
-# Find processes listening on ports 4000 and 5173
-$ports = @(4000, 5173)
+# Find processes listening on all system ports
+$ports = @{
+    2024 = "Resume Agent LangGraph"
+    3000 = "Agent Chat UI"
+    4000 = "Observability Server"
+    5173 = "Web Dashboard"
+}
 $processesKilled = 0
 
-foreach ($port in $ports) {
-    Write-Host "`nChecking port $port..." -ForegroundColor Cyan
+foreach ($port in $ports.Keys | Sort-Object) {
+    $serviceName = $ports[$port]
+    Write-Host "`nChecking port $port ($serviceName)..." -ForegroundColor Cyan
 
     try {
         # Get connections on the specified port
-        $connections = Get-NetTCPConnection -LocalPort $port -ErrorAction SilentlyContinue
+        $connections = Get-NetTCPConnection -LocalPort $port -ErrorAction Stop
 
         if ($connections) {
             # Get unique process IDs
-            $pids = $connections | Select-Object -ExpandProperty OwningProcess -Unique
+            $processIds = $connections | Select-Object -ExpandProperty OwningProcess -Unique
 
-            foreach ($pid in $pids) {
-                $process = Get-Process -Id $pid -ErrorAction SilentlyContinue
+            foreach ($processId in $processIds) {
+                $process = Get-Process -Id $processId -ErrorAction SilentlyContinue
                 if ($process) {
-                    Write-Host "  Stopping process: $($process.ProcessName) (PID: $pid)" -ForegroundColor Yellow
-                    Stop-Process -Id $pid -Force -ErrorAction SilentlyContinue
+                    Write-Host "  Stopping $serviceName - $($process.ProcessName) (PID: $processId)" -ForegroundColor Yellow
+                    Stop-Process -Id $processId -Force -ErrorAction SilentlyContinue
                     $processesKilled++
-                    Write-Host "  ✓ Process $pid terminated" -ForegroundColor Green
+                    Write-Host "  ✓ Process $processId terminated" -ForegroundColor Green
                 }
             }
-        } else {
-            Write-Host "  No process found on port $port" -ForegroundColor Gray
         }
     } catch {
-        Write-Host "  Error checking port $port : $_" -ForegroundColor Red
+        # If no connections found, the cmdlet throws an error - this is expected
+        if ($_.Exception.Message -match "No MSFT_NetTCPConnection objects found" -or
+            $_.CategoryInfo.Category -eq "ObjectNotFound") {
+            Write-Host "  No process found on port $port" -ForegroundColor Gray
+        } else {
+            Write-Host "  Error checking port $port : $($_.Exception.Message)" -ForegroundColor Red
+        }
     }
 }
 
