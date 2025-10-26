@@ -714,7 +714,17 @@ For detailed examples and patterns:
 - **Message Format Guide:** `references/message-format-guide.md`
 - **Debugging Agents:** `references/debugging-agents.md`
 
-### Implementation Guides
+### Complete Implementation Guides (NEW)
+- **StateGraph Complete Guide:** `references/stategraph-complete-guide.md` - Comprehensive patterns for state management and message handling
+- **FastAPI Integration Patterns:** `references/fastapi-integration-patterns.md` - Production-ready FastAPI + LangGraph with streaming
+- **LLM Provider Integration:** `references/llm-provider-integration.md` - Anthropic Claude and OpenAI GPT integration patterns
+
+### Working Code Examples (NEW)
+- **Minimal Agent:** `examples/minimal_agent.py` - Complete agent in 200 lines (includes FastAPI server)
+- **Streaming Agent:** `examples/streaming_agent.py` - Real-time streaming with SSE
+- **Examples README:** `examples/README.md` - Quick start guide for all examples
+
+### Project-Specific Guides
 - **Working Agent Implementation:** `apps/resume-agent-langgraph/resume_agent_langgraph.py`
 - **Agent Development Guide:** `apps/resume-agent-langgraph/CLAUDE.md`
 - **LangGraph Configuration:** `apps/resume-agent-langgraph/langgraph.json`
@@ -724,23 +734,72 @@ For detailed examples and patterns:
 
 ## Additional Resources
 
+### Official Documentation
 - **LangGraph Documentation:** https://python.langchain.com/docs/langgraph
 - **LangGraph GitHub:** https://github.com/langchain-ai/langgraph
 - **Agent Chat UI Repo:** https://github.com/langchain-ai/agent-chat-ui
 - **LangGraph Studio:** Included with `langgraph dev` command
 - **Context7 Docs:** Use `/fetch-docs langgraph` for latest documentation
 
+### Production Examples (GitHub)
+- **Agent Service Toolkit:** https://github.com/JoshuaC215/agent-service-toolkit - Full-stack with PostgreSQL and Docker
+- **Assistant UI + LangGraph:** https://github.com/Yonom/assistant-ui-langgraph-fastapi - Modern FastAPI + Next.js template
+- **Production Template:** https://github.com/wassim249/fastapi-langgraph-agent-production-ready-template - JWT, Langfuse, Prometheus
+
+### Package Versions (This Project)
+```
+langgraph>=0.2.0
+fastapi>=0.115.0
+anthropic>=0.39.0
+openai>=1.0.0
+@langchain/langgraph-sdk ^0.1.0 (Agent Chat UI)
+```
+
 ## Quick Start Workflow
 
-1. **Define state schema** (TypedDict)
-2. **Implement node functions** (process state, return updates)
-3. **Build StateGraph** (add nodes, edges, checkpointer)
-4. **Create langgraph.json** (configure graph builder)
-5. **Set up .env** (API keys, model configuration)
-6. **Test with langgraph dev** (verify graph execution)
-7. **Configure Agent Chat UI** (point to LangGraph server)
-8. **Test UI integration** (verify chat interface works)
-9. **Iterate and refine** (improve agent behavior)
+### For New Agents
+
+1. **Start with working example:**
+   ```bash
+   python .claude/skills/langgraph-builder/examples/minimal_agent.py
+   ```
+
+2. **Define state schema** (TypedDict with `add_messages`)
+   ```python
+   from typing import Annotated, TypedDict
+   from langgraph.graph.message import add_messages
+
+   class State(TypedDict):
+       messages: Annotated[list, add_messages]
+   ```
+
+3. **Implement node functions** (always return AIMessage objects)
+   ```python
+   from langchain_core.messages import AIMessage
+
+   def chat_node(state):
+       # ... call LLM
+       return {"messages": [AIMessage(content=response)]}
+   ```
+
+4. **Build StateGraph** (add nodes, edges, checkpointer)
+5. **Create langgraph.json** (configure graph builder)
+6. **Set up .env** (API keys, model configuration)
+7. **Test with langgraph dev** (verify graph execution)
+8. **Configure Agent Chat UI** (point to LangGraph server)
+9. **Test UI integration** (verify chat interface works)
+10. **Iterate and refine** (improve agent behavior)
+
+### For FastAPI Deployment
+
+1. **Use streaming example:**
+   ```bash
+   python .claude/skills/langgraph-builder/examples/streaming_agent.py --server
+   ```
+
+2. **Review FastAPI patterns:** `references/fastapi-integration-patterns.md`
+3. **Add production features:** CORS, auth, error handling
+4. **Deploy with Docker:** See deployment section in FastAPI guide
 
 ## Support
 

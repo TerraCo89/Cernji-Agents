@@ -81,7 +81,7 @@ ANTHROPIC_API_KEY=your_anthropic_key_here
 
 The agent will automatically show which provider and model it's using when it starts.
 
-**💡 Tip**: OpenAI is ~20x cheaper than Claude, making it ideal for testing. See [PROVIDERS.md](PROVIDERS.md) for detailed comparison.
+**💡 Tip**: OpenAI is ~20x cheaper than Claude, making it ideal for testing. See [PROVIDERS.md](docs/PROVIDERS.md) for detailed comparison.
 
 ### Running the Agent
 
@@ -187,11 +187,13 @@ Based on patterns from the [LangGraph Crash Course](langgraph_crash_course.ipynb
 apps/resume-agent-langgraph/
 ├── resume_agent_langgraph.py   # Conversational agent
 ├── test_agent.py                # Automated test script
-├── langgraph_crash_course.ipynb # LangGraph learning notebook
+├── examples/                    # Example code and tutorials
+│   └── langgraph_crash_course.ipynb
+├── docs/                        # Documentation
+│   └── CLAUDE.md               # Development guidance
 ├── pyproject.toml               # UV dependencies
 ├── .env.example                 # Environment template
-├── README.md                    # This file
-└── CLAUDE.md                    # Development guidance
+└── README.md                    # This file
 ```
 
 ### Adding New Capabilities
@@ -274,8 +276,8 @@ print(result)  # Should return formatted analysis
 ## Resources
 
 - **LangGraph Documentation**: https://python.langchain.com/docs/langgraph
-- **Crash Course Notebook**: [langgraph_crash_course.ipynb](langgraph_crash_course.ipynb)
-- **LLM Provider Comparison**: [PROVIDERS.md](PROVIDERS.md) - Claude vs OpenAI comparison
+- **Crash Course Notebook**: [langgraph_crash_course.ipynb](examples/langgraph_crash_course.ipynb)
+- **LLM Provider Comparison**: [PROVIDERS.md](docs/PROVIDERS.md) - Claude vs OpenAI comparison
 - **Original MCP Server**: `/apps/resume-agent/resume_agent.py`
 - **Feature Spec**: `/specs/006-langgraph-resume-agent/spec.md`
 

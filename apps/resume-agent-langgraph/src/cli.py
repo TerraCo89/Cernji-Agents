@@ -7,7 +7,7 @@ Command-line interface for the Resume Agent.
 
 import sys
 from datetime import datetime, timezone
-from resume_agent import build_conversation_graph, get_settings, get_provider_info
+from resume_agent_langgraph import build_conversation_graph, get_settings, get_provider_info
 
 
 def main():

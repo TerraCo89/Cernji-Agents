@@ -35,7 +35,7 @@ os.environ["STORAGE_BACKEND"] = "sqlite"
 os.environ["SQLITE_DATABASE_PATH"] = "./data/resume_agent.db"
 os.environ["USER_ID"] = "default"
 
-from resume_agent import job_app_repo
+from resume_agent_langgraph import job_app_repo
 
 # Constants
 APPLICATIONS_DIR = Path("./job-applications")

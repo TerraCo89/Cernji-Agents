@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-FastAPI Server for Resume Agent LangGraph - Agent Chat UI Compatible
+FastAPI Server for LangGraph - Agent Chat UI Compatible
 
-This server wraps the Resume Agent LangGraph implementation and provides
+This server wraps the LangGraph implementation and provides
 compatibility with Agent Chat UI by implementing the LangGraph SDK API format.
 
 This bypasses the problematic LangGraph server (which has issues on Windows)
@@ -10,11 +10,9 @@ by providing a direct FastAPI SSE streaming endpoint.
 
 Architecture:
 - FastAPI: Web server with SSE streaming
-- Resume Agent Graph: The working LangGraph conversation graph
+- LangGraph: The working LangGraph conversation graph
 - LangGraph SDK API format: Compatible with Agent Chat UI
 
-Author: Claude (Anthropic)
-License: Experimental
 """
 
 import os

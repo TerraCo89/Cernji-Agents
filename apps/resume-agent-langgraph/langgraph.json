@@ -1,8 +1,9 @@
 {
+  "$schema": "https://langgra.ph/schema.json",
   "dependencies": ["."],
   "graphs": {
-    "resume_agent": "./resume_agent_langgraph.py:build_graph"
+    "resume_agent": "./resume_agent_langgraph.py:resume_agent_langgraph"
   },
   "env": ".env",
-  "python_version": "3.11"
+  "image_distro": "wolfi"
 }

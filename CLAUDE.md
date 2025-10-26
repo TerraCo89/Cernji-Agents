@@ -55,3 +55,50 @@ Then configure Claude Desktop (see [QUICKSTART.md](QUICKSTART.md))
 - **[README-MCP-SERVER.md](README-MCP-SERVER.md)** - Complete feature guide
 - **[DEPLOYMENT.md](DEPLOYMENT.md)** - Production deployment guide
 - **[library-docs/](library-docs/)** - Claude Code & Agent SDK references
+
+## Development Practices
+
+### Testing After Code Changes
+
+**IMPORTANT**: After making any functional code changes, ALWAYS run the validation workflow to catch issues before committing.
+
+**Quick validation** (< 30 seconds):
+```bash
+# Syntax + import check
+python -m compileall -q . && pytest --collect-only -q
+
+# Or use the validation script
+.\scripts\validate-changes.ps1  # Windows
+./scripts/validate-changes.sh   # Linux/macOS
+```
+
+**When to validate**:
+- After moving/renaming files or modules
+- After refactoring imports
+- After changing dependencies
+- After any code changes that could break functionality
+
+**Validation checks**:
+1. Python syntax validation
+2. Import validation (static analysis with ruff)
+3. Test collection (dynamic import check)
+4. Critical module imports
+5. Unit test execution
+
+See the **test-after-changes** skill in `.claude/skills/test-after-changes/` for detailed instructions.
+
+### Available Skills
+
+Claude Code uses skills to provide specialized workflows:
+
+- **test-after-changes** - Validation workflow after code changes (use after refactoring, feature work)
+- **skill-creator** - Guide for creating new skills
+- **deep-researcher** - Multi-angle parallel research for complex topics
+- **doc-fetcher** - Fetch library documentation from Context7
+- **job-analyzer** - Analyze job postings for requirements
+- **resume-writer** - Transform master resume for specific jobs
+- **cover-letter-writer** - Generate personalized cover letters
+- **portfolio-finder** - Search GitHub for relevant code examples
+- **career-enhancer** - Analyze gaps between job requirements and career history
+- **langgraph-builder** - Guide for building LangGraph agents
+- **data-access** - Centralized data access for career tools
