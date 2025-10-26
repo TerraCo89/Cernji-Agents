@@ -10,6 +10,11 @@ requires-python = ">=3.11"
 dependencies = [
     "langgraph>=1.0.0,<2.0.0",
     "langgraph-sdk>=0.2.9",
+    "langchain>=0.3.0",  # Required for init_chat_model
+    "langchain-core>=0.3.0",  # Required for messages and tools
+    "langchain-anthropic>=0.3.0",  # Required for Anthropic models
+    "langchain-openai>=0.2.0",  # Required for OpenAI models
+    "python-dotenv>=1.0.1",  # Required for .env file loading
     "fastmcp>=2.0.0",
     "fastapi>=0.115.0",  # Required for FastAPI server
     "uvicorn[standard]>=0.32.0",  # Required for FastAPI server

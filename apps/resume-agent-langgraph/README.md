@@ -2,16 +2,18 @@
 
 A real-time conversational agent powered by LangGraph and Claude, designed to assist with job applications and resume management.
 
-## Current Status: v0.3.0 - Professional Modular Architecture
+> **🆕 Latest Update**: Rebuilt with clean LangGraph patterns following the official tutorial. The new `src/resume_agent/graph.py` provides a minimal foundation ready for incremental feature additions. Use `langgraph dev` to run with Studio UI for visual debugging.
 
-This is a production-ready implementation with professional folder structure. The agent features:
+## Current Status: v0.3.0 - Clean Foundation
 
-- ✅ Modular architecture with clear separation of concerns
-- ✅ Multi-provider support (Claude + OpenAI)
-- ✅ Professional package structure following best practices
-- ✅ Comprehensive test suite and examples
-- ✅ Easy to extend with new features
-- ✅ Type-safe with TypedDict and Pydantic
+This is a clean foundation following LangGraph best practices:
+
+- ✅ Minimal graph structure ready for incremental additions
+- ✅ Multi-provider LLM support (OpenAI + Anthropic via init_chat_model)
+- ✅ Tool-ready architecture (add tools to the `tools` list)
+- ✅ LangGraph Studio integration for visual debugging
+- ✅ Professional package structure
+- ✅ Type-safe with TypedDict and add_messages reducer
 
 ## Purpose
 
@@ -47,94 +49,65 @@ The following features will be added incrementally (from original MCP server):
 # Navigate to project directory
 cd apps/resume-agent-langgraph
 
-# Install dependencies via UV
-uv sync
+# Install dependencies including LangGraph CLI
+pip install -e . "langgraph-cli[inmem]"
 
 # Copy environment template
 cp .env.example .env
 
-# Configure your LLM provider in .env
-# LLM_PROVIDER=openai  # or "claude" (default: claude)
-# OPENAI_API_KEY=your_openai_key_here
-# ANTHROPIC_API_KEY=your_anthropic_key_here
+# Configure your API keys in .env (see next section)
 ```
 
 ### LLM Provider Configuration
 
-The agent supports both **Claude (Anthropic)** and **OpenAI** as LLM providers:
+Add your API keys to `.env`:
 
-**OpenAI (Recommended for testing - cheaper):**
 ```bash
 # .env
-LLM_PROVIDER=openai
-OPENAI_API_KEY=your_openai_key_here
-# Optional: OPENAI_MODEL=gpt-4o-mini (default)
+# Required: Choose one LLM provider
+OPENAI_API_KEY=sk-...
+# OR
+ANTHROPIC_API_KEY=sk-ant-...
+
+# Optional: Customize models (defaults shown)
+LLM_PROVIDER=openai  # or "anthropic"
+OPENAI_MODEL=gpt-4o-mini
+ANTHROPIC_MODEL=claude-sonnet-4-5
 ```
 
-**Claude (Anthropic):**
-```bash
-# .env
-LLM_PROVIDER=claude
-ANTHROPIC_API_KEY=your_anthropic_key_here
-# Optional: CLAUDE_MODEL=claude-sonnet-4-5 (default)
-```
-
-The agent will automatically show which provider and model it's using when it starts.
-
-**💡 Tip**: OpenAI is ~20x cheaper than Claude, making it ideal for testing. See [PROVIDERS.md](docs/PROVIDERS.md) for detailed comparison.
+The `init_chat_model()` function will automatically select the right provider based on your configuration.
 
 ### Running the Agent
 
-#### Interactive Mode
-
-Run the agent in your terminal for a real-time conversation:
+Start the LangGraph development server with Studio UI:
 
 ```bash
-# Start the conversational agent
-uv run apps/resume-agent-langgraph/resume_agent_langgraph.py
+langgraph dev
 ```
 
-**Example session:**
+This will:
+- Start the LangGraph server on port 2024
+- Open LangGraph Studio in your browser for visual debugging
+- Enable hot reload for code changes
+
+**Using LangGraph Studio:**
+1. Click the `+` button to start a new conversation thread
+2. Type messages in the input field
+3. View the graph execution in real-time
+4. Edit past state and rerun from specific nodes for debugging
+5. Monitor message flow and state changes visually
+
+**Example interaction:**
 ```
-============================================================
-🚀 Resume Agent - LangGraph Conversational Agent
-============================================================
-
-💡 LLM Provider: OpenAI
-💡 Model: gpt-4o-mini
-
-Welcome! I'm your Resume Agent assistant.
-I'm currently in development mode, learning to chat with you.
-
-Type 'exit', 'quit', or 'bye' to end the conversation.
-============================================================
-
-============================================================
-👤 You (type 'exit' or 'quit' to end): Hello!
-
-🤖 Thinking... (OpenAI/gpt-4o-mini)
-
-🤖 Assistant: Hello! How can I assist you today?
-
-============================================================
-👤 You (type 'exit' or 'quit' to end): exit
-
-👋 Goodbye! Thanks for chatting!
+You: Hello! I need help tailoring my resume.
+Assistant: Hello! I'd be happy to help you tailor your resume. Could you tell me more about...
 ```
 
-#### Test Mode
-
-Run automated tests without interactive input:
-
-```bash
-uv run apps/resume-agent-langgraph/test_agent.py
-```
-
-This will test the agent with 3 predefined messages and verify the conversation flow.
+**For programmatic access**, see the `examples/basic_usage.py` file for how to invoke the graph directly from Python code.
 
 ## Architecture
 
-Based on patterns from the [LangGraph Crash Course](langgraph_crash_course.ipynb):
+The graph follows LangGraph's standard single-node chatbot pattern (ready to extend with tools):
 
 ```
 ┌─────────────┐
@@ -143,41 +116,38 @@ Based on patterns from the [LangGraph Crash Course](langgraph_crash_course.ipynb
        │
        v
 ┌─────────────┐
-│ get_input   │  ← Get user message from CLI
+│  chatbot    │  ← Process messages with LLM
 └──────┬──────┘
        │
-       v (conditional: continue or exit)
-┌─────────────┐
-│    chat     │  ← Process with Claude API
-└──────┬──────┘
-       │
-       v (loop back)
+       v
+    (END when no tool calls)
+    (tools node when tool calls present - currently no tools)
 ```
 
 ### Key Components
 
-1. **ConversationState**: TypedDict with append-only messages list
-   - Uses `Annotated[list, add]` for message appending (standard LangGraph pattern)
-   - Tracks conversation history across turns
-   - `should_continue` flag for exit handling
+**Defined in `src/resume_agent/graph.py`:**
 
-2. **chat_node**: Processes messages with Claude API
-   - Takes full conversation history
-   - Sends to Claude with system prompt
-   - Returns assistant response
+1. **State**: TypedDict with message history
+   - `messages: Annotated[list, add_messages]` - Standard LangGraph message reducer
+   - Automatically appends messages rather than overwriting
 
-3. **get_user_input_node**: Handles CLI input and exit commands
-   - Displays last assistant message
-   - Gets user input from terminal
-   - Checks for exit commands (exit/quit/bye)
+2. **chatbot node**: Main processing node
+   - Invokes LLM (OpenAI or Anthropic via `init_chat_model`)
+   - If tools are present, binds them to LLM and handles tool calls
+   - Returns assistant response to append to message history
 
-4. **should_continue**: Conditional edge for conversation flow
-   - Routes to "chat" if user wants to continue
-   - Routes to END if user wants to exit
+3. **tools list**: Currently empty, ready for additions
+   - Add tools here (e.g., job analyzer, resume parser)
+   - When tools are added, ToolNode and tools_condition are automatically configured
 
-5. **MemorySaver**: Checkpointer for conversation history
-   - Maintains conversation context across turns
-   - Thread-based session management
+4. **LLM Configuration**: Multi-provider support
+   - Configured via environment variables (`LLM_PROVIDER`, `OPENAI_MODEL`, `ANTHROPIC_MODEL`)
+   - Uses LangChain's `init_chat_model()` for unified interface
+
+5. **Checkpointing**: Handled by LangGraph Server
+   - When running via `langgraph dev`, persistence is automatic
+   - Thread-based conversation history maintained by the server
 
 ## Development
 
@@ -185,92 +155,103 @@ Based on patterns from the [LangGraph Crash Course](langgraph_crash_course.ipynb
 
 ```
 apps/resume-agent-langgraph/
-├── resume_agent_langgraph.py   # Conversational agent
-├── test_agent.py                # Automated test script
-├── examples/                    # Example code and tutorials
-│   └── langgraph_crash_course.ipynb
+├── src/resume_agent/
+│   ├── graph.py                # Main graph definition (NEW)
+│   ├── state/                  # State schemas (existing modular code)
+│   ├── tools/                  # Tool definitions (existing modular code)
+│   ├── nodes/                  # Node functions (existing modular code)
+│   └── prompts/                # Prompt templates (existing modular code)
+├── examples/                    # Example usage patterns
+│   └── basic_usage.py          # Programmatic graph invocation
 ├── docs/                        # Documentation
-│   └── CLAUDE.md               # Development guidance
-├── pyproject.toml               # UV dependencies
-├── .env.example                 # Environment template
+├── tests/                       # Test suite
+├── langgraph.json              # LangGraph server config
+├── pyproject.toml              # Dependencies
+├── .env.example                # Environment template
 └── README.md                    # This file
 ```
 
 ### Adding New Capabilities
 
-Follow this pattern for adding functions to the agent:
+The graph is designed for incremental additions. Start simple and add features one at a time:
 
-#### 1. Define a new node function
+#### 1. Adding Tools
+
+Add tools to the `tools` list in `graph.py`:
 
 ```python
-def analyze_job_node(state: ConversationState) -> dict:
-    """Analyze a job posting from URL in user message."""
-    # Extract job URL from user message
-    last_msg = state["messages"][-1]["content"]
+from langchain_core.tools import tool
 
-    # Call analysis logic (can reuse from original MCP server)
-    analysis = perform_job_analysis(extract_url(last_msg))
+@tool
+def analyze_job(url: str) -> dict:
+    """Analyze a job posting from a URL."""
+    # Implementation here
+    return {"title": "...", "requirements": [...]}
 
-    # Format response
-    response = format_analysis_response(analysis)
-
-    # Return assistant message
-    return {
-        "messages": [{
-            "role": "assistant",
-            "content": response
-        }]
-    }
+# Add to tools list
+tools = [analyze_job]
 ```
 
-#### 2. Add the node to the graph
+The graph automatically detects tools and adds routing! No manual edge configuration needed.
+
+#### 2. Extending State
+
+Add fields to track additional data:
 
 ```python
-graph.add_node("analyze_job", analyze_job_node)
+class State(TypedDict):
+    messages: Annotated[list, add_messages]
+    job_url: str  # Track current job being analyzed
+    resume_data: dict  # Cache parsed resume
 ```
 
-#### 3. Add routing logic
+#### 3. Adding Human-in-the-Loop
+
+Use `interrupt()` for human verification:
 
 ```python
-def route_intent(state: ConversationState) -> str:
-    """Route to specialized nodes based on user intent."""
-    last_message = state["messages"][-1]["content"].lower()
+from langgraph.types import Command, interrupt
+from langchain_core.tools import tool, InjectedToolCallId
 
-    if "analyze" in last_message and "job" in last_message:
-        return "analyze_job"
+@tool
+def verify_resume_changes(
+    changes: dict,
+    tool_call_id: Annotated[str, InjectedToolCallId]
+) -> str:
+    """Request human approval for resume changes."""
+    human_response = interrupt({
+        "question": "Apply these changes?",
+        "changes": changes
+    })
 
-    return "chat"  # Default to general chat
+    if human_response.lower().startswith("y"):
+        return Command(update={"resume_data": changes})
+    else:
+        return "Changes rejected"
 ```
 
-#### 4. Update conditional edges
+See the basic-langgraph-agent example for a complete working implementation of human-in-the-loop.
+
+### Testing
+
+Test the graph using LangGraph Studio or programmatically:
 
 ```python
-graph.add_conditional_edges(
-    "get_input",
-    route_intent,
-    {
-        "chat": "chat",
-        "analyze_job": "analyze_job",
-        END: END
-    }
-)
+from src.resume_agent.graph import graph
+from langchain_core.messages import HumanMessage
+
+# Invoke the graph
+result = graph.invoke({
+    "messages": [HumanMessage(content="Hello!")]
+})
+
+print(result["messages"][-1].content)
 ```
 
-### Testing New Nodes
+Run the test suite:
 
-Always test nodes in isolation first:
-
-```python
-# Test the node directly
-test_state = {
-    "messages": [
-        {"role": "user", "content": "Analyze this job: https://example.com/job"}
-    ],
-    "should_continue": True
-}
-
-result = analyze_job_node(test_state)
-print(result)  # Should return formatted analysis
+```bash
+pytest tests/
 ```
 
 ## Resources

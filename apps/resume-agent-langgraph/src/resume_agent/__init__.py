@@ -1,33 +1,15 @@
 """Resume Agent - LangGraph Conversational Agent."""
 
-from .config import get_settings, reset_settings
-from .state import ConversationState, JobAnalysisState, ResumeTailoringState
-from .llm import call_llm, get_provider_info
-from .nodes import chat_node, get_user_input_node
-from .graphs import build_conversation_graph, build_job_analysis_graph, build_resume_tailoring_graph
+# Main graph is exported from graph.py
+# Legacy modular components are available but not imported by default
+# to avoid import errors when only using the main graph
 
 __version__ = "0.3.0"
 
 __all__ = [
-    # Configuration
-    "get_settings",
-    "reset_settings",
-
-    # State
-    "ConversationState",
-    "JobAnalysisState",
-    "ResumeTailoringState",
-
-    # LLM
-    "call_llm",
-    "get_provider_info",
-
-    # Nodes
-    "chat_node",
-    "get_user_input_node",
-
-    # Graphs
-    "build_conversation_graph",
-    "build_job_analysis_graph",
-    "build_resume_tailoring_graph",
+    # Main graph is in graph.py and loaded directly by langgraph.json
+    # Legacy components can be imported explicitly if needed:
+    # from resume_agent.config import get_settings
+    # from resume_agent.state import schemas
+    # from resume_agent.llm import providers
 ]
