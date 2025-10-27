@@ -147,6 +147,10 @@ class ConversationState(TypedDict):
 - Use `Annotated[list, add_messages]` for message history
 - Add custom fields as needed for agent logic
 
+**Troubleshooting Imports:**
+- If you encounter `ImportError` or `ModuleNotFoundError`, see `references/import-fix-guide.md`
+- Use absolute imports (e.g., `from my_agent.state import State`), not relative imports
+
 ### Nodes
 
 Functions that process state and return partial updates.
@@ -675,6 +679,21 @@ config = {"configurable": {"thread_id": "unique-id"}}
 app.invoke(state, config=config)
 ```
 
+**Issue 4: ImportError - attempted relative import**
+
+**Symptom:** `langgraph dev` fails with `ImportError: attempted relative import with no known parent package` or `ModuleNotFoundError`
+
+**Causes:**
+- Using relative imports (e.g., `from .state import ...`) in graph modules
+- Missing `./src` in `langgraph.json` dependencies array
+
+**Solution:**
+1. Change all relative imports to absolute imports
+2. Update `langgraph.json` to include `"./src"` in dependencies: `"dependencies": [".", "./src"]`
+3. Ensure all directories have `__init__.py` files
+
+**See:** `references/import-fix-guide.md` for complete resolution steps and verification commands
+
 ## Best Practices
 
 ### State Management
@@ -710,6 +729,7 @@ app.invoke(state, config=config)
 For detailed examples and patterns:
 
 ### Critical Troubleshooting Guides
+- **Import Errors (LangGraph Server):** `references/import-fix-guide.md` ⚠️ Required for src/ layouts
 - **Message Format Errors (KeyError: 'role'):** `references/message-format-errors.md` ⚠️ READ FIRST
 - **Message Format Guide:** `references/message-format-guide.md`
 - **Debugging Agents:** `references/debugging-agents.md`
@@ -765,6 +785,8 @@ openai>=1.0.0
    ```
 
 2. **Define state schema** (TypedDict with `add_messages`)
+   - Use absolute imports if your project uses src/ layout
+   - If you encounter import errors, see `references/import-fix-guide.md`
    ```python
    from typing import Annotated, TypedDict
    from langgraph.graph.message import add_messages

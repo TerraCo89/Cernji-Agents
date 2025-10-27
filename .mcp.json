@@ -45,6 +45,28 @@
         "COLLECTION_NAME": "resume-agent-chunks",
         "EMBEDDING_MODEL": "sentence-transformers/all-MiniLM-L6-v2"
       }
+    },
+    "linear": {
+      "command": "cmd",
+      "args": [
+        "/c",
+        "npx",
+        "-y",
+        "mcp-remote",
+        "https://mcp.linear.app/sse"
+      ]
+    },
+    "miro": {
+      "command": "cmd",
+      "args": [
+        "/c",
+        "npx",
+        "-y",
+        "@k-jarzyna/mcp-miro"
+      ],
+      "env": {
+        "MIRO_ACCESS_TOKEN": "eyJtaXJvLm9yaWdpbiI6ImV1MDEifQ_pZ6sexoAD5Z2B83GiKKc4hj79Pw"
+      }
     }
   }
 }

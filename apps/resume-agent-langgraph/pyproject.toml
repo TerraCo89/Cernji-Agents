@@ -14,6 +14,7 @@ dependencies = [
     "langchain-core>=0.3.0",  # Required for messages and tools
     "langchain-anthropic>=0.3.0",  # Required for Anthropic models
     "langchain-openai>=0.2.0",  # Required for OpenAI models
+    "langchain-community>=0.3.0",  # Required for Playwright browser tools
     "python-dotenv>=1.0.1",  # Required for .env file loading
     "fastmcp>=2.0.0",
     "fastapi>=0.115.0",  # Required for FastAPI server
@@ -28,6 +29,9 @@ dependencies = [
     "httpx>=0.27.0",
     "sqlmodel>=0.0.16",  # Required for DAL imports from apps/resume-agent
     "pyyaml>=6.0.0",  # Required for resume YAML parsing
+    "beautifulsoup4>=4.12.0",  # Required for HTML parsing
+    "tiktoken>=0.5.0",  # Required for token counting
+    "playwright>=1.40.0",  # Required for web browser automation
 ]
 
 [project.scripts]

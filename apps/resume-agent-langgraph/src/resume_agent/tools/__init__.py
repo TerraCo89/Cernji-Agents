@@ -8,7 +8,6 @@ from .ats_scorer import (
 )
 from .resume_parser import (
     load_master_resume,
-    parse_resume_yaml,
     extract_skills_from_resume,
     extract_achievements_from_resume,
 )
@@ -19,7 +18,6 @@ __all__ = [
     "calculate_ats_score",
     "suggest_improvements",
     "load_master_resume",
-    "parse_resume_yaml",
     "extract_skills_from_resume",
     "extract_achievements_from_resume",
 ]

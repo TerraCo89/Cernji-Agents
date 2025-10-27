@@ -1,4 +1,4 @@
-# Import Error Fix - LangGraph Server Compatibility
+# Import Errors - LangGraph Server Compatibility
 
 **Date:** 2025-10-26
 **Issue:** `ImportError: attempted relative import with no known parent package`
@@ -260,3 +260,14 @@ With imports fixed, we can proceed with:
 **Status:** ✅ RESOLVED
 **Verified:** All imports working with LangGraph dev server
 **Ready for:** Phase 2 - Tools Integration
+
+---
+
+## Related Documentation
+
+**See:** `../SKILL.md` for the complete LangGraph agent building guide
+
+**Related References:**
+- `message-format-errors.md` - Common message format issues
+- `debugging-agents.md` - Debugging strategies and tools
+- `stategraph-complete-guide.md` - Comprehensive StateGraph patterns

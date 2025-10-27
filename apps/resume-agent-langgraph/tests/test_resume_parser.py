@@ -1,100 +1,100 @@
 """Tests for resume parser tool."""
 
 import pytest
+from unittest.mock import patch, MagicMock
 from src.resume_agent.tools.resume_parser import (
-    load_master_resume,
-    parse_resume_yaml,
     extract_skills_from_resume,
     extract_achievements_from_resume,
 )
 
 
-def test_parse_resume_yaml_valid():
-    """Test parsing valid YAML resume."""
-    yaml_content = """
-personal_info:
-  name: John Doe
-  email: john@example.com
-  phone: "123-456-7890"
-  location: San Francisco, CA
+@patch('resume_agent.data.access._get_mcp_fn')
+def test_load_master_resume_success(mock_get_mcp_fn):
+    """Test loading resume from database successfully."""
+    from src.resume_agent.tools.resume_parser import load_master_resume
 
-professional_summary: |
-  Experienced software engineer with 10+ years building scalable systems.
+    # Mock the MCP function to return success response
+    mock_fn = MagicMock()
+    mock_fn.return_value = {
+        "status": "success",
+        "data": {
+            "personal_info": {
+                "name": "John Doe",
+                "email": "john@example.com",
+                "phone": "123-456-7890",
+                "location": "San Francisco, CA"
+            },
+            "professional_summary": "Experienced software engineer with 10+ years building scalable systems.",
+            "employment_history": [
+                {
+                    "company": "TechCorp",
+                    "position": "Senior Engineer",
+                    "start_date": "2020-01",
+                    "end_date": "2023-01",
+                    "description": "Led backend development",
+                    "technologies": ["Python", "Docker", "AWS"],
+                    "achievements": [
+                        {"description": "Reduced API latency by 40%", "metric": "40% faster"},
+                        {"description": "Led migration to microservices"}
+                    ]
+                }
+            ],
+            "skills": ["Python", "AWS", "Docker", "Kubernetes"]
+        }
+    }
+    mock_get_mcp_fn.return_value = mock_fn
 
-employment_history:
-  - company: TechCorp
-    position: Senior Engineer
-    start_date: "2020-01"
-    end_date: "2023-01"
-    description: Led backend development
-    technologies:
-      - Python
-      - Docker
-      - AWS
-    achievements:
-      - description: Reduced API latency by 40%
-        metric: "40% faster"
-      - description: Led migration to microservices
+    # Call the tool (LangChain tools use .invoke())
+    result = load_master_resume.invoke({})
 
-skills:
-  - Python
-  - AWS
-  - Docker
-  - Kubernetes
-"""
-
-    result = parse_resume_yaml(yaml_content)
-
+    # Verify
     assert result["status"] == "success"
     assert "data" in result
-
-    data = result["data"]
-    assert data["personal_info"]["name"] == "John Doe"
-    assert data["personal_info"]["email"] == "john@example.com"
-    assert len(data["employment_history"]) == 1
-    assert data["employment_history"][0]["company"] == "TechCorp"
+    assert result["data"]["personal_info"]["name"] == "John Doe"
+    assert len(result["data"]["employment_history"]) == 1
+    mock_get_mcp_fn.assert_called_once_with("data_read_master_resume")
+    mock_fn.assert_called_once()
 
 
-def test_parse_resume_yaml_missing_required_field():
-    """Test parsing YAML without required fields."""
-    yaml_content = """
-employment_history: []
-skills:
-  - Python
-"""
+@patch('resume_agent.data.access._get_mcp_fn')
+def test_load_master_resume_database_error(mock_get_mcp_fn):
+    """Test handling database error when loading resume."""
+    from src.resume_agent.tools.resume_parser import load_master_resume
 
-    result = parse_resume_yaml(yaml_content)
+    # Mock the MCP function to return error response
+    mock_fn = MagicMock()
+    mock_fn.return_value = {
+        "status": "error",
+        "error": "Resume not found in database"
+    }
+    mock_get_mcp_fn.return_value = mock_fn
 
+    # Call the tool (LangChain tools use .invoke())
+    result = load_master_resume.invoke({})
+
+    # Verify error handling
     assert result["status"] == "error"
-    assert "personal_info" in result["error"]
+    assert "Resume not found" in result["error"]
+    mock_get_mcp_fn.assert_called_once_with("data_read_master_resume")
 
 
-def test_parse_resume_yaml_invalid_yaml():
-    """Test parsing invalid YAML syntax."""
-    yaml_content = """
-personal_info:
-  name: John Doe
-  invalid: [unclosed
-"""
+@patch('resume_agent.data.access._get_mcp_fn')
+def test_load_master_resume_unexpected_error(mock_get_mcp_fn):
+    """Test handling unexpected error when loading resume."""
+    from src.resume_agent.tools.resume_parser import load_master_resume
 
-    result = parse_resume_yaml(yaml_content)
+    # Mock the MCP function to raise exception
+    mock_fn = MagicMock()
+    mock_fn.side_effect = Exception("Unexpected database error")
+    mock_get_mcp_fn.return_value = mock_fn
 
+    # Call the tool (LangChain tools use .invoke())
+    result = load_master_resume.invoke({})
+
+    # Verify error handling
     assert result["status"] == "error"
-    assert "YAML" in result["error"]
-
-
-def test_parse_resume_yaml_empty_employment_history():
-    """Test parsing resume with no employment history (defaults to empty list)."""
-    yaml_content = """
-personal_info:
-  name: John Doe
-  email: john@example.com
-"""
-
-    result = parse_resume_yaml(yaml_content)
-
-    assert result["status"] == "success"
-    assert result["data"]["employment_history"] == []
+    assert "Failed to load resume from database" in result["error"]
+    mock_get_mcp_fn.assert_called_once_with("data_read_master_resume")
 
 
 def test_extract_skills_from_resume_with_list():
@@ -106,7 +106,8 @@ def test_extract_skills_from_resume_with_list():
         ],
     }
 
-    skills = extract_skills_from_resume(resume_data)
+    # LangChain tools need to be invoked with .invoke()
+    skills = extract_skills_from_resume.invoke({"resume_data": resume_data})
 
     assert sorted(skills) == ["AWS", "Docker", "Kubernetes", "Python"]
     assert len(skills) == 4  # Python should be deduplicated
@@ -119,7 +120,8 @@ def test_extract_skills_from_resume_with_dict():
         "employment_history": [{"company": "TechCorp", "technologies": ["Docker"]}],
     }
 
-    skills = extract_skills_from_resume(resume_data)
+    # LangChain tools need to be invoked with .invoke()
+    skills = extract_skills_from_resume.invoke({"resume_data": resume_data})
 
     assert sorted(skills) == ["AWS", "Communication", "Docker", "Leadership", "Python"]
 
@@ -128,7 +130,8 @@ def test_extract_skills_from_resume_empty():
     """Test extracting skills from resume with no skills."""
     resume_data = {"personal_info": {"name": "John Doe"}, "employment_history": []}
 
-    skills = extract_skills_from_resume(resume_data)
+    # LangChain tools need to be invoked with .invoke()
+    skills = extract_skills_from_resume.invoke({"resume_data": resume_data})
 
     assert skills == []
 
@@ -157,7 +160,8 @@ def test_extract_achievements_from_resume():
         ]
     }
 
-    achievements = extract_achievements_from_resume(resume_data)
+    # LangChain tools need to be invoked with .invoke()
+    achievements = extract_achievements_from_resume.invoke({"resume_data": resume_data})
 
     assert len(achievements) == 4
 
@@ -187,46 +191,7 @@ def test_extract_achievements_from_resume_no_achievements():
         ]
     }
 
-    achievements = extract_achievements_from_resume(resume_data)
+    # LangChain tools need to be invoked with .invoke()
+    achievements = extract_achievements_from_resume.invoke({"resume_data": resume_data})
 
     assert achievements == []
-
-
-def test_load_master_resume_file_not_found():
-    """Test loading non-existent resume file."""
-    result = load_master_resume("/nonexistent/path/resume.yaml")
-
-    assert result["status"] == "error"
-    assert "not found" in result["error"]
-
-
-def test_load_master_resume_integration(tmp_path):
-    """Integration test for loading resume from file."""
-    # Create temporary resume file
-    resume_file = tmp_path / "test_resume.yaml"
-    resume_content = """
-personal_info:
-  name: Jane Smith
-  email: jane@example.com
-
-employment_history:
-  - company: DataCorp
-    position: Data Engineer
-    start_date: "2021-01"
-    end_date: Present
-    technologies:
-      - Python
-      - Spark
-    achievements:
-      - description: Built data pipeline processing 1M records/day
-"""
-
-    resume_file.write_text(resume_content, encoding="utf-8")
-
-    # Load resume
-    result = load_master_resume(str(resume_file))
-
-    assert result["status"] == "success"
-    assert result["data"]["personal_info"]["name"] == "Jane Smith"
-    assert len(result["data"]["employment_history"]) == 1
-    assert result["data"]["employment_history"][0]["company"] == "DataCorp"

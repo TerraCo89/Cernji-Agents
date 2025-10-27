@@ -1,8 +1,9 @@
-"""New LangGraph Agent.
+"""Resume Agent LangGraph.
 
-This module defines a custom graph.
+This module provides the resume agent langgraph implementation.
 """
 
-from agent.graph import graph
+# Note: Removed import of agent.graph to avoid import errors during testing
+# The actual graph is defined in src/resume_agent/graph.py
 
-__all__ = ["graph"]
+__all__ = []
