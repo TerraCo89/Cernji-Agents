@@ -161,14 +161,37 @@ def parse_job_posting(job_content: str) -> dict[str, Any]:
 
 
 @tool
-def analyze_job_posting(job_url: str) -> dict[str, Any]:
-    """Fetch and analyze a job posting from a URL.
+def analyze_job_posting(job_url: str) -> str:
+    """Start job analysis workflow for a given URL.
+
+    This tool triggers the browser-based job scraping and analysis workflow.
+    The workflow will:
+    1. Check if the job has been analyzed before (cache)
+    2. If not cached, scrape the job posting using browser automation
+    3. Analyze the job posting with an LLM to extract structured data
+    4. Store the results in state
 
     Args:
         job_url: URL of the job posting to analyze
 
     Returns:
-        Dictionary containing job information including company, title, requirements, skills, and responsibilities.
+        Message indicating that job analysis has started
+    """
+    # Tool returns a message - the actual workflow is triggered by
+    # the graph routing which detects job_url is set in state
+    return f"Starting job analysis for: {job_url}\n\nI'll use browser automation to fetch and analyze this job posting."
+
+
+# Legacy implementation kept for reference
+# The browser automation workflow in nodes/job_analysis.py replaces this
+def _legacy_analyze_job_posting(job_url: str) -> dict[str, Any]:
+    """Legacy HTTP-based job analysis (replaced by browser automation workflow).
+
+    Args:
+        job_url: URL of the job posting to analyze
+
+    Returns:
+        Dictionary containing job information
     """
     errors: list[str] = []
 

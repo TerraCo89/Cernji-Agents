@@ -505,6 +505,30 @@ await page.evaluate("Object.defineProperty(navigator, 'webdriver', { get: () => 
 
 ## Troubleshooting Common Issues
 
+### Issue: ChatAnthropic authentication error
+**Symptom:**
+```
+TypeError: "Could not resolve authentication method. Expected either api_key or auth_token to be set..."
+```
+
+**Root Cause:** `.env` file exists but environment variables not loaded into Python process.
+
+**Solution:** Load dotenv BEFORE creating browser agent
+```python
+from dotenv import load_dotenv
+from langchain_anthropic import ChatAnthropic
+
+# CRITICAL: Load at module level (top of file)
+load_dotenv()
+
+# Now ChatAnthropic can find ANTHROPIC_API_KEY
+async def create_scraper_agent(browser):
+    llm = ChatAnthropic(model="claude-sonnet-4-5", temperature=0)
+    # ... rest of agent setup
+```
+
+**See:** `llm-provider-integration.md` → "Environment Variable Loading (CRITICAL)" for complete guide
+
 ### Issue: Browser not closing
 **Solution**: Use context managers or ensure cleanup in finally blocks
 ```python

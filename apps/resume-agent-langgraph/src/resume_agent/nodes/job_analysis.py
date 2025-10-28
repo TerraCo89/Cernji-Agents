@@ -9,11 +9,13 @@ License: Experimental
 
 import json
 import time
+import asyncio
 from datetime import datetime
 
 from ..state import JobAnalysisState
 from ..llm import call_llm
 from ..prompts import JOB_ANALYSIS_PROMPT
+from ..tools.browser_automation import scrape_job_posting
 
 
 # In-memory cache for job analyses (simple implementation for MVP)
@@ -41,33 +43,36 @@ def check_cache_node(state: JobAnalysisState) -> dict:
 
     # Check in-memory cache
     if job_url in _job_cache:
-        print(f"\n✓ Cache hit for {job_url}")
+        print(f"\n[OK] Cache hit for {job_url}")
         return {
             "cached": True,
             "job_analysis": _job_cache[job_url]
         }
 
-    print(f"\n✗ Cache miss for {job_url}")
+    print(f"\n[MISS] Cache miss for {job_url}")
     return {
         "cached": False,
         "job_analysis": None
     }
 
 
-def fetch_job_node(state: JobAnalysisState) -> dict:
+async def fetch_job_node(state: JobAnalysisState) -> dict:
     """
-    Fetch job posting content from URL.
+    Fetch job posting content from URL using browser automation.
 
-    This node simulates fetching a job posting from a URL. In a production
-    implementation, this would use httpx or the web fetch MCP tool to retrieve
-    actual job posting content.
+    Uses Playwright-based browser automation to scrape job postings from
+    JavaScript-heavy websites. Automatically detects site type (japan-dev,
+    recruit, or generic) and uses appropriate scraper.
+
+    IMPORTANT: On Windows, runs browser automation in thread pool to avoid
+    asyncio subprocess limitations (NotImplementedError with ProactorEventLoop).
 
     Args:
         state: Current job analysis state containing job_url
 
     Returns:
         Partial state update with:
-        - job_content: Fetched content (placeholder for MVP)
+        - job_content: Fetched and structured content
         - errors: Updated error list if fetch fails
         - duration_ms: Time taken to fetch
     """
@@ -75,38 +80,42 @@ def fetch_job_node(state: JobAnalysisState) -> dict:
     job_url = state["job_url"]
 
     try:
-        print(f"\n📥 Fetching job posting from {job_url}...")
+        print(f"\n[FETCH] Fetching job posting from {job_url}...")
 
-        # TODO: Replace with actual web fetching using httpx or MCP tool
-        # For MVP, use placeholder content
-        job_content = f"""
-        Job Posting from {job_url}
+        # Detect site type from URL
+        if "japan-dev.com" in job_url:
+            site_type = "japan-dev"
+        elif "recruit.legalontech.jp" in job_url:
+            site_type = "recruit"
+        else:
+            site_type = "generic"
 
-        Company: Example Tech Corp
-        Position: Senior Software Engineer
+        # Run browser automation in thread pool (Windows workaround)
+        # Windows ProactorEventLoop doesn't support subprocess pipes
+        import sys
+        if sys.platform == "win32":
+            # Windows: Run in thread pool with its own event loop
+            job_data = await asyncio.to_thread(
+                _scrape_job_sync,
+                job_url,
+                site_type,
+                max_retries=3,
+                timeout_seconds=60
+            )
+        else:
+            # Unix: Can use async directly
+            job_data = await scrape_job_posting(
+                job_url,
+                site_type=site_type,
+                max_retries=3,
+                timeout_seconds=60
+            )
 
-        Requirements:
-        - 5+ years of Python experience
-        - Experience with LangGraph and LangChain
-        - Strong understanding of AI/ML workflows
-        - Experience with FastAPI and REST APIs
-
-        Responsibilities:
-        - Build and maintain AI agent applications
-        - Design and implement LangGraph workflows
-        - Collaborate with product team on features
-        - Write clean, maintainable code
-
-        Skills:
-        Python, LangGraph, LangChain, FastAPI, PostgreSQL, Docker
-
-        Location: Remote
-        Salary: $120k - $160k
-        """
+        # Format structured data into text for LLM analysis
+        job_content = _format_job_data_as_text(job_data, job_url)
 
         duration_ms = (time.time() - start_time) * 1000
-
-        print(f"✓ Job content fetched in {duration_ms:.0f}ms")
+        print(f"[OK] Job content fetched in {duration_ms:.0f}ms")
 
         return {
             "job_content": job_content,
@@ -116,12 +125,92 @@ def fetch_job_node(state: JobAnalysisState) -> dict:
     except Exception as e:
         duration_ms = (time.time() - start_time) * 1000
         error_msg = f"Failed to fetch job posting: {str(e)}"
-        print(f"\n❌ {error_msg}")
+        print(f"\n[ERROR] {error_msg}")
 
         return {
             "errors": state.get("errors", []) + [error_msg],
             "duration_ms": duration_ms
         }
+
+
+def _scrape_job_sync(url: str, site_type: str, max_retries: int = 3, timeout_seconds: int = 60):
+    """
+    Synchronous wrapper for browser scraping (thread pool execution on Windows).
+
+    Creates a new event loop in the thread to run async Playwright operations,
+    avoiding Windows asyncio subprocess limitations with ProactorEventLoop.
+
+    Args:
+        url: Job posting URL
+        site_type: Site identifier (japan-dev, recruit, generic)
+        max_retries: Maximum retry attempts
+        timeout_seconds: Timeout per attempt in seconds
+
+    Returns:
+        Structured job data dictionary (JobPostingData)
+    """
+    # Create dedicated event loop for this thread
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+
+    try:
+        # Run async scraper in this thread's event loop
+        return loop.run_until_complete(
+            scrape_job_posting(
+                url,
+                site_type=site_type,
+                max_retries=max_retries,
+                timeout_seconds=timeout_seconds
+            )
+        )
+    finally:
+        loop.close()
+
+
+def _format_job_data_as_text(job_data: dict, job_url: str) -> str:
+    """
+    Format structured job data into text for LLM analysis.
+
+    Args:
+        job_data: Structured job data from browser scraper
+        job_url: Original job URL
+
+    Returns:
+        Formatted text representation of job posting
+    """
+    # Build formatted text from structured data
+    parts = [f"Job Posting from {job_url}\n"]
+
+    if job_data.get("company_name"):
+        parts.append(f"Company: {job_data['company_name']}")
+
+    if job_data.get("job_title"):
+        parts.append(f"Position: {job_data['job_title']}")
+
+    if job_data.get("location"):
+        parts.append(f"Location: {job_data['location']}")
+
+    if job_data.get("employment_type"):
+        parts.append(f"Employment Type: {job_data['employment_type']}")
+
+    if job_data.get("salary_range"):
+        parts.append(f"Salary: {job_data['salary_range']}")
+
+    if job_data.get("job_description"):
+        parts.append(f"\nDescription:\n{job_data['job_description']}")
+
+    if job_data.get("requirements"):
+        parts.append("\nRequirements:")
+        for req in job_data["requirements"]:
+            parts.append(f"- {req}")
+
+    if job_data.get("application_url"):
+        parts.append(f"\nApplication: {job_data['application_url']}")
+
+    if job_data.get("posted_date"):
+        parts.append(f"Posted: {job_data['posted_date']}")
+
+    return "\n".join(parts)
 
 
 def analyze_job_node(state: JobAnalysisState) -> dict:
@@ -186,7 +275,7 @@ def analyze_job_node(state: JobAnalysisState) -> dict:
         job_analysis = json.loads(json_text)
 
         duration_ms = (time.time() - start_time) * 1000
-        print(f"✓ Job analysis completed in {duration_ms:.0f}ms")
+        print(f"[OK] Job analysis completed in {duration_ms:.0f}ms")
 
         # Cache the result
         _job_cache[job_url] = job_analysis
@@ -197,7 +286,7 @@ def analyze_job_node(state: JobAnalysisState) -> dict:
 
     except json.JSONDecodeError as e:
         error_msg = f"Failed to parse LLM response as JSON: {str(e)}"
-        print(f"\n❌ {error_msg}")
+        print(f"\n[ERROR] {error_msg}")
         print(f"LLM Response: {llm_response[:200]}...")
 
         return {
@@ -206,7 +295,7 @@ def analyze_job_node(state: JobAnalysisState) -> dict:
 
     except Exception as e:
         error_msg = f"Failed to analyze job posting: {str(e)}"
-        print(f"\n❌ {error_msg}")
+        print(f"\n[ERROR] {error_msg}")
 
         return {
             "errors": state.get("errors", []) + [error_msg]

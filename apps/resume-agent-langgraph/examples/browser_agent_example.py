@@ -21,7 +21,8 @@ from typing import Annotated, TypedDict, Sequence
 from langchain_core.messages import BaseMessage, HumanMessage, AIMessage, add_messages
 from langchain_community.agent_toolkits import PlayWrightBrowserToolkit
 from langchain_community.tools.playwright.utils import create_async_playwright_browser
-from langgraph.prebuilt import create_react_agent, ToolNode
+from langchain.agents import create_react_agent as create_agent
+from langgraph.prebuilt import ToolNode
 from langgraph.graph import StateGraph, START, END
 from langchain.chat_models import init_chat_model
 
@@ -77,7 +78,7 @@ async def example_react_agent():
     llm = init_chat_model(model="anthropic:claude-3-5-sonnet-latest", temperature=0)
 
     # Create ReAct agent - tools are passed directly!
-    agent = create_react_agent(model=llm, tools=tools)
+    agent = create_agent(model=llm, tools=tools)
 
     # Invoke agent with task
     print("\n📋 Task: Navigate to LangChain website and extract headers")
@@ -320,7 +321,7 @@ async def scrape_job_posting(job_url: str) -> dict:
     llm = init_chat_model(model="anthropic:claude-3-5-sonnet-latest", temperature=0)
 
     # Create agent
-    agent = create_react_agent(model=llm, tools=tools)
+    agent = create_agent(model=llm, tools=tools)
 
     # Construct detailed scraping prompt
     prompt = f"""

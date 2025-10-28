@@ -25,6 +25,7 @@ from .schemas import (
     # Workflow control
     WorkflowIntent,
     WorkflowProgress,
+    JobAnalysisState,
 
     # Reducers
     append_unique_examples,
@@ -58,6 +59,7 @@ __all__ = [
     # Workflow control
     "WorkflowIntent",
     "WorkflowProgress",
+    "JobAnalysisState",
 
     # Reducers
     "append_unique_examples",

@@ -59,7 +59,7 @@ playwright install chromium
 ```python
 from langchain_community.agent_toolkits import PlayWrightBrowserToolkit
 from langchain_community.tools.playwright.utils import create_async_playwright_browser
-from langgraph.prebuilt import create_react_agent
+from langchain.agents import create_react_agent as create_agent
 from langchain.chat_models import init_chat_model
 
 # Initialize browser and toolkit
@@ -69,7 +69,7 @@ tools = toolkit.get_tools()
 
 # Create agent - tools passed directly!
 llm = init_chat_model(model="anthropic:claude-3-5-sonnet-latest")
-agent = create_react_agent(model=llm, tools=tools)
+agent = create_agent(model=llm, tools=tools)
 
 # Invoke
 result = await agent.ainvoke({
@@ -339,9 +339,9 @@ result = executor.invoke({"input": "scrape website"})
 **After (LangGraph):**
 
 ```python
-from langgraph.prebuilt import create_react_agent
+from langchain.agents import create_react_agent as create_agent
 
-agent = create_react_agent(model=llm, tools=tools)
+agent = create_agent(model=llm, tools=tools)
 result = await agent.ainvoke({
     "messages": [{"role": "user", "content": "scrape website"}]
 })

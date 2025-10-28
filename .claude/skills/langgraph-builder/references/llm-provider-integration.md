@@ -385,6 +385,215 @@ def safe_chat_node(state: ConversationState) -> dict:
 
 ---
 
+## Environment Variable Loading (CRITICAL)
+
+### The Authentication Error
+
+**Symptom:**
+```python
+TypeError: "Could not resolve authentication method. Expected either api_key or auth_token to be set. Or for one of the `X-Api-Key` or `Authorization` headers to be explicitly omitted"
+```
+
+**Root Cause:** The `.env` file exists but environment variables are not loaded into the Python process.
+
+**Why This Happens:**
+- `.env` files are NOT automatically loaded by Python
+- Even if you have a `.env` file with `ANTHROPIC_API_KEY=...`, `os.getenv("ANTHROPIC_API_KEY")` returns `None`
+- `ChatAnthropic` and other LangChain integrations require the env var to be available in the process
+- This is especially common in async browser automation and LangGraph contexts
+
+### Solution 1: Explicit dotenv Loading (Recommended)
+
+**Install:**
+```bash
+pip install python-dotenv
+# or
+uv add python-dotenv
+```
+
+**Code Pattern:**
+```python
+from dotenv import load_dotenv
+import os
+from langchain_anthropic import ChatAnthropic
+
+# CRITICAL: Load .env file BEFORE initializing any clients
+load_dotenv()
+
+# Now environment variables are available
+api_key = os.getenv("ANTHROPIC_API_KEY")
+if not api_key:
+    raise ValueError("ANTHROPIC_API_KEY not found in environment")
+
+# Initialize ChatAnthropic (will use env var automatically)
+llm = ChatAnthropic(
+    model="claude-sonnet-4-5",
+    temperature=0,
+    api_key=api_key  # Explicit is better than implicit
+)
+```
+
+**When to call `load_dotenv()`:**
+- ✅ At the top of your main module (before any imports that use env vars)
+- ✅ In async context managers for browser automation
+- ✅ Before creating LangGraph agents that use LLM providers
+- ❌ NOT in every function (call once at startup)
+
+### Solution 2: Explicit API Key Passing
+
+```python
+import os
+from langchain_anthropic import ChatAnthropic
+from dotenv import load_dotenv
+
+load_dotenv()
+
+# Pass API key explicitly (safer)
+llm = ChatAnthropic(
+    model="claude-sonnet-4-5",
+    api_key=os.getenv("ANTHROPIC_API_KEY"),
+    temperature=0
+)
+```
+
+### Solution 3: Pydantic Settings (Production)
+
+```python
+from pydantic_settings import BaseSettings
+
+class Settings(BaseSettings):
+    anthropic_api_key: str
+    openai_api_key: str
+    llm_provider: str = "claude"
+    claude_model: str = "claude-sonnet-4-5"
+    openai_model: str = "gpt-4o-mini"
+
+    class Config:
+        env_file = ".env"  # Pydantic automatically loads this
+
+settings = Settings()
+
+# Use settings object
+llm = ChatAnthropic(
+    model=settings.claude_model,
+    api_key=settings.anthropic_api_key
+)
+```
+
+### Browser Automation Context
+
+**Special Case:** Async browser automation requires dotenv loading BEFORE browser context creation.
+
+```python
+from dotenv import load_dotenv
+from langchain_anthropic import ChatAnthropic
+from contextlib import asynccontextmanager
+
+# Load FIRST, before any async operations
+load_dotenv()
+
+@asynccontextmanager
+async def create_browser_context(headless: bool = True):
+    """Browser context with proper env var loading"""
+    from playwright.async_api import async_playwright
+
+    playwright = None
+    browser = None
+    try:
+        playwright = await async_playwright().start()
+        browser = await playwright.chromium.launch(headless=headless)
+        yield browser
+    finally:
+        if browser:
+            await browser.close()
+        if playwright:
+            await playwright.stop()
+
+
+async def create_scraper_agent(browser):
+    """Create agent - env vars already loaded"""
+    from langchain_community.agent_toolkits import PlayWrightBrowserToolkit
+    from langgraph.prebuilt import create_react_agent
+
+    toolkit = PlayWrightBrowserToolkit.from_browser(async_browser=browser)
+    tools = toolkit.get_tools()
+
+    # ChatAnthropic will find ANTHROPIC_API_KEY from environment
+    llm = ChatAnthropic(
+        model="claude-sonnet-4-5",
+        temperature=0
+    )
+
+    agent = create_react_agent(model=llm, tools=tools)
+    return agent
+```
+
+### Verification Steps
+
+**1. Check if dotenv is needed:**
+```python
+import os
+print(os.getenv("ANTHROPIC_API_KEY"))  # None = need load_dotenv()
+```
+
+**2. After loading dotenv:**
+```python
+from dotenv import load_dotenv
+import os
+
+load_dotenv()
+print(os.getenv("ANTHROPIC_API_KEY"))  # Should print key
+```
+
+**3. Verify ChatAnthropic works:**
+```python
+from langchain_anthropic import ChatAnthropic
+
+llm = ChatAnthropic(model="claude-sonnet-4-5")
+result = llm.invoke("Hello")
+print(result.content)  # Should print response
+```
+
+### Common Mistakes
+
+❌ **Mistake 1: Assuming .env auto-loads**
+```python
+# This FAILS - .env file exists but not loaded
+llm = ChatAnthropic(model="claude-sonnet-4-5")
+```
+
+❌ **Mistake 2: Loading dotenv in the wrong place**
+```python
+async def create_agent():
+    load_dotenv()  # TOO LATE - load at module level
+    llm = ChatAnthropic(...)
+```
+
+❌ **Mistake 3: Not checking if env var is set**
+```python
+api_key = os.getenv("ANTHROPIC_API_KEY")  # Could be None!
+llm = ChatAnthropic(api_key=api_key)  # TypeError
+```
+
+✅ **Correct Pattern:**
+```python
+from dotenv import load_dotenv
+import os
+
+# Load at module level (top of file)
+load_dotenv()
+
+# Validate
+api_key = os.getenv("ANTHROPIC_API_KEY")
+if not api_key:
+    raise ValueError("ANTHROPIC_API_KEY not set")
+
+# Use
+llm = ChatAnthropic(model="claude-sonnet-4-5", api_key=api_key)
+```
+
+---
+
 ## Best Practices
 
 ### 1. Environment Variable Management
@@ -400,7 +609,11 @@ OPENAI_MODEL=gpt-4o-mini
 
 ```python
 # config.py
+from dotenv import load_dotenv
 from pydantic_settings import BaseSettings
+
+# Load .env BEFORE Settings initialization
+load_dotenv()
 
 class Settings(BaseSettings):
     anthropic_api_key: str

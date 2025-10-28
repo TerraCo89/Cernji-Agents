@@ -429,11 +429,37 @@ See `apps/agent-chat-ui/SETUP.md` for complete setup guide
 
 ## LLM Provider Integration
 
+### ⚠️ CRITICAL: Environment Variable Loading
+
+**If you see this error:**
+```
+TypeError: "Could not resolve authentication method. Expected either api_key or auth_token to be set..."
+```
+
+**You forgot to load your .env file!** Python does NOT automatically load `.env` files.
+
+**Quick Fix:**
+```python
+from dotenv import load_dotenv
+
+# Add this at the TOP of your file, BEFORE any LLM imports
+load_dotenv()
+```
+
+**See:** `references/llm-provider-integration.md` → "Environment Variable Loading (CRITICAL)" for complete troubleshooting guide.
+
+---
+
 ### Claude (Anthropic)
 
 **Setup:**
 ```python
 import anthropic
+from dotenv import load_dotenv
+import os
+
+# CRITICAL: Load .env file first
+load_dotenv()
 
 client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
 

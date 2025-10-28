@@ -26,7 +26,7 @@ from typing import TypedDict, Annotated
 from langchain_core.messages import BaseMessage, HumanMessage, AIMessage, add_messages
 from langchain_community.agent_toolkits import PlayWrightBrowserToolkit
 from langchain_community.tools.playwright.utils import create_async_playwright_browser
-from langgraph.prebuilt import create_react_agent
+from langchain.agents import create_react_agent as create_agent
 from langchain_anthropic import ChatAnthropic
 
 
@@ -36,7 +36,7 @@ from langchain_anthropic import ChatAnthropic
 
 async def example_1_simple_agent():
     """
-    Simplest approach: Use create_react_agent with toolkit tools.
+    Simplest approach: Use create_agent with toolkit tools.
 
     Best for: Quick prototyping, standard web automation tasks
     """
@@ -63,7 +63,7 @@ async def example_1_simple_agent():
     )
 
     # Create ReAct agent - tools work directly with LangGraph!
-    agent = create_react_agent(model=llm, tools=tools)
+    agent = create_agent(model=llm, tools=tools)
 
     try:
         # Execute browser automation task
@@ -192,7 +192,7 @@ async def example_3_job_scraper():
     llm = ChatAnthropic(model="claude-sonnet-4-5", temperature=0)
 
     # Create agent
-    agent = create_react_agent(model=llm, tools=tools)
+    agent = create_agent(model=llm, tools=tools)
 
     try:
         # Multi-step job scraping workflow
@@ -239,7 +239,7 @@ async def example_4_form_automation():
     llm = ChatAnthropic(model="claude-sonnet-4-5", temperature=0)
 
     # Create agent
-    agent = create_react_agent(model=llm, tools=tools)
+    agent = create_agent(model=llm, tools=tools)
 
     try:
         result = await agent.ainvoke({
@@ -288,7 +288,7 @@ async def example_5_multi_page_navigation():
     from langgraph.checkpoint.memory import MemorySaver
     checkpointer = MemorySaver()
 
-    agent = create_react_agent(
+    agent = create_agent(
         model=llm,
         tools=tools,
         checkpointer=checkpointer
