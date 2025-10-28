@@ -25,7 +25,6 @@ from pathlib import Path
 # Import tool functions
 from src.resume_agent.tools.resume_parser import (
     load_master_resume,
-    parse_resume_yaml,
     extract_skills_from_resume,
     extract_achievements_from_resume
 )
@@ -45,7 +44,7 @@ from src.resume_agent.nodes.resume_tailor import (
 )
 
 # Import state
-from src.resume_agent.state import ResumeTailoringState
+from src.resume_agent.state import ResumeAgentState
 
 
 # ============================================================================
@@ -221,46 +220,40 @@ def initial_state():
 class TestResumeParserAdvanced:
     """Advanced tests for resume parser functions."""
 
-    def test_load_master_resume_permission_error(self, tmp_path):
-        """Test error handling when file permissions are insufficient."""
-        # Create a file and make it unreadable (Unix-like systems)
-        resume_file = tmp_path / "unreadable.yaml"
-        resume_file.write_text("personal_info:\n  name: Test")
+    @patch('src.resume_agent.tools.resume_parser.load_resume_from_db')
+    def test_load_master_resume_database_error(self, mock_db_load):
+        """Test error handling when database access fails."""
+        # Simulate database error
+        mock_db_load.side_effect = ValueError("Database connection failed")
 
-        # On Windows, we can't easily make files unreadable, so just test the path
-        result = load_master_resume(str(resume_file))
-        assert result["status"] in ["success", "error"]  # Either works or permission denied
-
-    def test_parse_resume_yaml_not_dict_root(self):
-        """Test parsing YAML that's not a dict at root level."""
-        yaml_content = "- item1\n- item2\n"
-        result = parse_resume_yaml(yaml_content)
+        result = load_master_resume.invoke({})
 
         assert result["status"] == "error"
-        assert "dictionary" in result["error"].lower()
+        assert "Database connection failed" in result["error"]
 
-    def test_parse_resume_yaml_invalid_personal_info(self):
-        """Test parsing with personal_info as wrong type."""
-        yaml_content = """
-personal_info: "Not a dictionary"
-employment_history: []
-"""
-        result = parse_resume_yaml(yaml_content)
+    @patch('src.resume_agent.tools.resume_parser.load_resume_from_db')
+    def test_load_master_resume_unexpected_error(self, mock_db_load):
+        """Test error handling for unexpected exceptions."""
+        # Simulate unexpected error
+        mock_db_load.side_effect = RuntimeError("Unexpected error")
 
-        assert result["status"] == "error"
-        assert "personal_info" in result["error"]
-
-    def test_parse_resume_yaml_invalid_employment_history(self):
-        """Test parsing with employment_history as wrong type."""
-        yaml_content = """
-personal_info:
-  name: John Doe
-employment_history: "Not a list"
-"""
-        result = parse_resume_yaml(yaml_content)
+        result = load_master_resume.invoke({})
 
         assert result["status"] == "error"
-        assert "employment_history" in result["error"]
+        assert "Failed to load resume from database" in result["error"]
+
+    @patch('src.resume_agent.tools.resume_parser.load_resume_from_db')
+    def test_load_master_resume_success_from_db(self, mock_db_load, sample_master_resume):
+        """Test successful resume loading from database."""
+        # Simulate successful database load
+        mock_db_load.return_value = sample_master_resume
+
+        result = load_master_resume.invoke({})
+
+        assert result["status"] == "success"
+        assert result["data"] == sample_master_resume
+        assert "personal_info" in result["data"]
+        assert "employment_history" in result["data"]
 
     def test_extract_skills_nested_technologies(self, sample_master_resume):
         """Test skill extraction from deeply nested employment history."""
@@ -278,7 +271,7 @@ employment_history: "Not a list"
             ]
         }
 
-        skills = extract_skills_from_resume(resume_with_nested)
+        skills = extract_skills_from_resume.invoke({"resume_data": resume_with_nested})
 
         # Should include both top-level skills and technologies
         assert "Python" in skills
@@ -295,7 +288,7 @@ employment_history: "Not a list"
             ]
         }
 
-        skills = extract_skills_from_resume(resume_data)
+        skills = extract_skills_from_resume.invoke({"resume_data": resume_data})
 
         # Should have 3 unique skills
         assert sorted(skills) == ["AWS", "Docker", "Python"]
@@ -317,7 +310,7 @@ employment_history: "Not a list"
             ]
         }
 
-        achievements = extract_achievements_from_resume(resume_data)
+        achievements = extract_achievements_from_resume.invoke({"resume_data": resume_data})
 
         assert len(achievements) == 2
         assert achievements[0]["role"] == "Engineer"
@@ -339,7 +332,7 @@ employment_history: "Not a list"
             ]
         }
 
-        achievements = extract_achievements_from_resume(resume_data)
+        achievements = extract_achievements_from_resume.invoke({"resume_data": resume_data})
 
         assert len(achievements) == 3
         assert achievements[0]["achievement"] == "String achievement"
@@ -1194,58 +1187,54 @@ class TestResumeTailoringWorkflow:
 # TEST STATE SCHEMA
 # ============================================================================
 
-class TestResumeTailoringState:
-    """Tests for ResumeTailoringState schema."""
+class TestResumeAgentState:
+    """Tests for ResumeAgentState schema (resume tailoring subset)."""
 
     def test_state_structure(self):
-        """Test that state has all required fields."""
-        state: ResumeTailoringState = {
+        """Test that state has all required/optional fields for resume tailoring."""
+        from langchain_core.messages import HumanMessage
+
+        # Create a minimal valid state with required fields
+        state: ResumeAgentState = {
+            "messages": [HumanMessage(content="Hello")],  # Required field
             "job_url": "https://example.com/job/123",
             "master_resume": None,
             "job_analysis": None,
-            "initial_ats_score": None,
             "tailored_resume": None,
-            "final_ats_score": None,
-            "keywords_integrated": [],
-            "errors": [],
-            "duration_ms": None
+            "portfolio_examples": [],
+            "error_message": None,
         }
 
-        # Verify all keys exist
+        # Verify key fields exist
+        assert "messages" in state
         assert "job_url" in state
         assert "master_resume" in state
         assert "job_analysis" in state
-        assert "initial_ats_score" in state
         assert "tailored_resume" in state
-        assert "final_ats_score" in state
-        assert "keywords_integrated" in state
-        assert "errors" in state
-        assert "duration_ms" in state
+        assert "portfolio_examples" in state
+        assert "error_message" in state
 
     def test_state_types(self):
         """Test that state fields have correct types."""
-        state: ResumeTailoringState = {
+        from langchain_core.messages import HumanMessage
+
+        state: ResumeAgentState = {
+            "messages": [HumanMessage(content="Test message")],
             "job_url": "https://example.com/job/123",
             "master_resume": {"personal_info": {"name": "Test"}},
             "job_analysis": {"company": "Test"},
-            "initial_ats_score": {"match_percentage": 50.0},
-            "tailored_resume": "Resume content",
-            "final_ats_score": {"match_percentage": 75.0},
-            "keywords_integrated": ["Python", "AWS"],
-            "errors": ["error1"],
-            "duration_ms": 123.45
+            "tailored_resume": {"content": "Resume content"},
+            "portfolio_examples": [],
+            "error_message": None,
         }
 
         # Verify types
+        assert isinstance(state["messages"], list)
         assert isinstance(state["job_url"], str)
         assert isinstance(state["master_resume"], dict)
         assert isinstance(state["job_analysis"], dict)
-        assert isinstance(state["initial_ats_score"], dict)
-        assert isinstance(state["tailored_resume"], str)
-        assert isinstance(state["final_ats_score"], dict)
-        assert isinstance(state["keywords_integrated"], list)
-        assert isinstance(state["errors"], list)
-        assert isinstance(state["duration_ms"], (int, float))
+        assert isinstance(state["tailored_resume"], dict)
+        assert isinstance(state["portfolio_examples"], list)
 
 
 # ============================================================================

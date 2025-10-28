@@ -3,7 +3,7 @@
 from langgraph.graph import StateGraph, START, END
 from langgraph.checkpoint.memory import MemorySaver
 
-from ..state import CoverLetterState
+from ..state import ResumeAgentState
 from ..nodes import (
     prepare_cover_letter_context_node,
     generate_cover_letter_node,
@@ -11,7 +11,7 @@ from ..nodes import (
 )
 
 
-def should_regenerate(state: CoverLetterState) -> str:
+def should_regenerate(state: ResumeAgentState) -> str:
     """
     Determine if cover letter should be regenerated based on review score.
 
@@ -73,7 +73,7 @@ def build_cover_letter_graph() -> StateGraph:
         Compiled StateGraph with MemorySaver checkpointer for persistence
     """
     # Create graph
-    graph = StateGraph(CoverLetterState)
+    graph = StateGraph(ResumeAgentState)
 
     # Add nodes
     graph.add_node("prepare_context", prepare_cover_letter_context_node)

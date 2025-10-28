@@ -60,9 +60,6 @@ addopts = [
     "-v",
     "--strict-markers",
     "--strict-config",
-    "--cov=resume_agent_langgraph",
-    "--cov-report=term-missing",
-    "--cov-report=html",
 ]
 
 [tool.black]

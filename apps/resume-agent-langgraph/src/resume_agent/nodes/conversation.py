@@ -1,11 +1,11 @@
 """Conversation nodes for chat functionality."""
 
-from ..state import ConversationState
+from ..state import ResumeAgentState
 from ..llm import call_llm, get_provider_info, convert_langgraph_messages_to_api_format
 from ..prompts import CONVERSATION_SYSTEM
 
 
-def chat_node(state: ConversationState) -> dict:
+def chat_node(state: ResumeAgentState) -> dict:
     """
     Process user message with LLM and return response.
 
@@ -44,7 +44,7 @@ def chat_node(state: ConversationState) -> dict:
         }
 
 
-def get_user_input_node(state: ConversationState) -> dict:
+def get_user_input_node(state: ResumeAgentState) -> dict:
     """
     Get input from user via CLI.
 

@@ -12,12 +12,12 @@ import json
 import time
 import re
 
-from ..state import CoverLetterState
+from ..state import ResumeAgentState
 from ..llm import call_llm
 from ..prompts import COVER_LETTER_PROMPT, COVER_LETTER_REVIEW_PROMPT
 
 
-def prepare_cover_letter_context_node(state: CoverLetterState) -> dict:
+def prepare_cover_letter_context_node(state: ResumeAgentState) -> dict:
     """
     Prepare context for cover letter generation from job analysis and tailored resume.
 
@@ -125,7 +125,7 @@ def prepare_cover_letter_context_node(state: CoverLetterState) -> dict:
         }
 
 
-def generate_cover_letter_node(state: CoverLetterState) -> dict:
+def generate_cover_letter_node(state: ResumeAgentState) -> dict:
     """
     Generate personalized cover letter using LLM.
 
@@ -221,7 +221,7 @@ def generate_cover_letter_node(state: CoverLetterState) -> dict:
         }
 
 
-def review_cover_letter_node(state: CoverLetterState) -> dict:
+def review_cover_letter_node(state: ResumeAgentState) -> dict:
     """
     Review generated cover letter for quality and provide suggestions.
 

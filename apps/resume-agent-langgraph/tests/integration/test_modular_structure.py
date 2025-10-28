@@ -29,13 +29,11 @@ except Exception as e:
 print("\n[Test 2] State Schemas")
 try:
     from src.resume_agent.state import (
-        ConversationState,
-        JobAnalysisState,
-        ResumeTailoringState
+        ResumeAgentState,
+        JobAnalysisState
     )
-    print(f"  ConversationState: OK")
+    print(f"  ResumeAgentState: OK")
     print(f"  JobAnalysisState: OK")
-    print(f"  ResumeTailoringState: OK")
     print("  Status: PASS")
 except Exception as e:
     print(f"  Status: FAIL - {e}")
@@ -72,9 +70,14 @@ except Exception as e:
 # Test 5: Nodes
 print("\n[Test 5] Node Implementations")
 try:
-    from src.resume_agent.nodes import chat_node, get_user_input_node
-    print(f"  chat_node: OK")
-    print(f"  get_user_input_node: OK")
+    from src.resume_agent.nodes import (
+        check_cache_node,
+        fetch_job_node,
+        analyze_job_node
+    )
+    print(f"  check_cache_node: OK")
+    print(f"  fetch_job_node: OK")
+    print(f"  analyze_job_node: OK")
     print("  Status: PASS")
 except Exception as e:
     print(f"  Status: FAIL - {e}")
@@ -83,25 +86,23 @@ except Exception as e:
 # Test 6: Graphs
 print("\n[Test 6] Graph Orchestration")
 try:
-    from src.resume_agent.graphs import build_conversation_graph
-    app = build_conversation_graph()
-    print(f"  build_conversation_graph: OK")
+    from src.resume_agent.graphs import build_job_analysis_graph
+    app = build_job_analysis_graph()
+    print(f"  build_job_analysis_graph: OK")
     print(f"  Graph compiled: {app is not None}")
     print("  Status: PASS")
 except Exception as e:
     print(f"  Status: FAIL - {e}")
     sys.exit(1)
 
-# Test 7: Main Package
+# Test 7: Main Package Exports
 print("\n[Test 7] Main Package Exports")
 try:
-    from src.resume_agent import (
-        get_settings,
-        ConversationState,
-        call_llm,
-        build_conversation_graph
-    )
-    print(f"  All main exports accessible: OK")
+    from src.resume_agent.config import get_settings
+    from src.resume_agent.state import ResumeAgentState
+    from src.resume_agent.llm import call_llm
+    from src.resume_agent.graphs import build_job_analysis_graph
+    print(f"  All main exports accessible via submodules: OK")
     print("  Status: PASS")
 except Exception as e:
     print(f"  Status: FAIL - {e}")

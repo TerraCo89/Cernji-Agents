@@ -3,7 +3,7 @@
 # Only import implemented nodes to avoid import errors
 # TODO: Uncomment as other nodes are implemented
 
-# from .conversation import chat_node, get_user_input_node
+from .conversation import chat_node, get_user_input_node
 from .job_analysis import check_cache_node, fetch_job_node, analyze_job_node
 # from .resume_tailor import (
 #     load_resume_node,
@@ -18,8 +18,8 @@ from .job_analysis import check_cache_node, fetch_job_node, analyze_job_node
 # )
 
 __all__ = [
-    # "chat_node",
-    # "get_user_input_node",
+    "chat_node",
+    "get_user_input_node",
     "check_cache_node",
     "fetch_job_node",
     "analyze_job_node",

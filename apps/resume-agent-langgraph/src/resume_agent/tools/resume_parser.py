@@ -8,7 +8,7 @@ of truth database access.
 from typing import Any
 
 from langchain_core.tools import tool
-from resume_agent.data.access import load_master_resume as load_resume_from_db
+from ..data.access import load_master_resume as load_resume_from_db
 
 
 @tool

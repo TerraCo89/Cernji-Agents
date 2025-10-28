@@ -9,8 +9,8 @@ import os
 import sys
 from pathlib import Path
 
-# Add current directory to path
-sys.path.insert(0, str(Path(__file__).parent))
+# Add project root to path (two levels up from tests/e2e/)
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from resume_agent_langgraph import build_conversation_graph
 from dotenv import load_dotenv

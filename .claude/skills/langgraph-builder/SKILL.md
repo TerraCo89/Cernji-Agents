@@ -128,6 +128,13 @@ The foundation of LangGraph agents. Manages conversation state and orchestrates 
 2. **Nodes**: Functions that process state and return updates
 3. **Edges**: Connections between nodes (fixed or conditional)
 4. **Checkpointer**: Persistence layer for conversation history
+5. **Database Access**: Tools and nodes that query/update databases
+
+**Database Integration:**
+For agents that need database access, see comprehensive guides:
+- **Tool Patterns**: `ai_docs/ai-ml/langgraph/database-access-patterns.md`
+- **Connection Pooling**: `ai_docs/ai-ml/langgraph/connection-management.md`
+- **Testing Strategies**: `ai_docs/ai-ml/langgraph/testing-database-tools.md`
 
 ### State Management
 
@@ -351,7 +358,61 @@ OPENAI_MODEL=gpt-4o-mini
 **Existing Example (Resume Agent):**
 See `apps/resume-agent-langgraph/.env`
 
-### Step 6: Test Locally
+### Step 6: Add Database Integration (Optional)
+
+If your agent needs database access, implement tools with proper patterns.
+
+**Pattern Selection:**
+
+1. **Context API (v0.6.0+ Recommended)**:
+   - Pass database connections via `context_schema` parameter
+   - Access with `get_runtime(ContextSchema)` in tools
+   - Best for: Production apps with connection pooling
+
+2. **Fresh Connection Per Tool**:
+   - Each tool creates and closes its own connection
+   - Most reliable for SQLite
+   - Best for: Development, simple apps
+
+3. **Class-Based Tools**:
+   - Dependency injection via `__init__`
+   - Best for: Complex tools with multiple dependencies
+
+**Example (Context API):**
+```python
+from dataclasses import dataclass
+from langgraph.runtime import get_runtime
+
+@dataclass
+class AppContext:
+    db_path: str
+    user_id: str
+
+graph = StateGraph(
+    state_schema=MyState,
+    context_schema=AppContext  # Add context schema
+)
+
+@tool
+def query_database(query: str) -> list:
+    runtime = get_runtime(AppContext)
+    conn = sqlite3.connect(runtime.context.db_path)
+    # ... use connection
+    return results
+
+# Pass context at invocation
+result = graph.invoke(
+    state,
+    context={"db_path": "app.db", "user_id": "user_123"}
+)
+```
+
+**See Complete Guides:**
+- Tool patterns: `ai_docs/ai-ml/langgraph/database-access-patterns.md`
+- Connection management: `ai_docs/ai-ml/langgraph/connection-management.md`
+- Testing: `ai_docs/ai-ml/langgraph/testing-database-tools.md`
+
+### Step 7: Test Locally
 
 Run agent with LangGraph dev server.
 
@@ -728,6 +789,17 @@ app.invoke(state, config=config)
 2. **Use `Annotated[list, add_messages]`** for message history
 3. **Return partial state updates** from nodes (don't mutate state)
 4. **Add custom fields** as needed for agent logic
+5. **Store data, not connections** in state (database connections aren't serializable)
+
+### Database Access
+
+1. **Use Context API** for passing database connections (v0.6.0+)
+2. **Never store connections in state** (use context or create per-tool)
+3. **Use connection pooling** for production (PostgreSQL)
+4. **Fresh connections per operation** for SQLite
+5. **Implement retry logic** for transient database errors
+
+**See:** `ai_docs/ai-ml/langgraph/database-access-patterns.md` for complete patterns
 
 ### Error Handling
 
@@ -735,13 +807,15 @@ app.invoke(state, config=config)
 2. **Accumulate errors in state** for graceful degradation
 3. **Return error messages** to user when failures occur
 4. **Log errors** for debugging
+5. **Tools return error dicts** instead of raising (enables LLM self-correction)
 
 ### Performance
 
-1. **Use appropriate checkpointer** (MemorySaver for dev, SqliteSaver for production)
+1. **Use appropriate checkpointer** (MemorySaver for dev, AsyncPostgresSaver for production)
 2. **Minimize state size** (store only essential data)
 3. **Implement conditional edges** for efficient routing
 4. **Use streaming** for real-time UI updates
+5. **Connection pooling** for database-intensive agents
 
 ### Security
 
@@ -749,6 +823,7 @@ app.invoke(state, config=config)
 2. **Use environment variables** for sensitive configuration
 3. **Validate user input** before processing
 4. **Implement rate limiting** for production deployments
+5. **Use InjectedToolArg** for security-sensitive parameters (user IDs, auth tokens)
 
 ## Reference Files
 
@@ -760,12 +835,17 @@ For detailed examples and patterns:
 - **Message Format Guide:** `references/message-format-guide.md`
 - **Debugging Agents:** `references/debugging-agents.md`
 
-### Complete Implementation Guides (NEW)
+### Complete Implementation Guides
 - **StateGraph Complete Guide:** `references/stategraph-complete-guide.md` - Comprehensive patterns for state management and message handling
 - **FastAPI Integration Patterns:** `references/fastapi-integration-patterns.md` - Production-ready FastAPI + LangGraph with streaming
 - **LLM Provider Integration:** `references/llm-provider-integration.md` - Anthropic Claude and OpenAI GPT integration patterns
 
-### Working Code Examples (NEW)
+### Database Integration Guides (NEW)
+- **Database Access Patterns:** `ai_docs/ai-ml/langgraph/database-access-patterns.md` - Tool implementation, state management, Context API
+- **Connection Management:** `ai_docs/ai-ml/langgraph/connection-management.md` - Connection pooling, lifecycle, async patterns, SQLite considerations
+- **Testing Database Tools:** `ai_docs/ai-ml/langgraph/testing-database-tools.md` - Unit tests with mocks, integration tests, CI/CD strategies
+
+### Working Code Examples
 - **Minimal Agent:** `examples/minimal_agent.py` - Complete agent in 200 lines (includes FastAPI server)
 - **Streaming Agent:** `examples/streaming_agent.py` - Real-time streaming with SSE
 - **Examples README:** `examples/README.md` - Quick start guide for all examples

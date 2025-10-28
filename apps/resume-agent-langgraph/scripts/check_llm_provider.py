@@ -4,8 +4,8 @@
 import sys
 from pathlib import Path
 
-# Add src to path
-sys.path.insert(0, str(Path(__file__).parent / "src"))
+# Add src to path (now two levels up from tests/integration/ to get to project root)
+sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
 
 try:
     from resume_agent.config import get_settings
