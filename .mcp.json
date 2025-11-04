@@ -29,7 +29,7 @@
           "npx",
           "-y",
           "mcp-sqlite",
-          "data\\japanese_agent.db"
+          "apps\\japanese-tutor\\src\\data\\japanese_agent.db"
       ]
     },
     "qdrant-vectors": {
