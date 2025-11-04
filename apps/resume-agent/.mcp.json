@@ -23,7 +23,10 @@
             "-y",
             "mcp-sqlite",
             "data\\resume_agent.db"
-        ]
+        ],
+        "env": {
+            "cwd": "D:\\source\\Cernji-Agents\\apps\\resume-agent"
+        }
     }
   }
 }

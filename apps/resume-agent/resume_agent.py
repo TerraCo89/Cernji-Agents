@@ -80,11 +80,12 @@ mcp = FastMCP(
 # From: apps/resume-agent/resume_agent.py
 # To:   repository root (3 levels up: resume_agent.py -> apps/resume-agent -> apps -> root)
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
-COMMANDS_DIR = Path(__file__).parent / ".claude" / "commands"  # App-specific commands
-AGENTS_DIR = Path(__file__).parent / ".claude" / "agents"      # App-specific agents
+APP_DIR = Path(__file__).resolve().parent                       # App directory (apps/resume-agent)
+COMMANDS_DIR = APP_DIR / ".claude" / "commands"                 # App-specific commands
+AGENTS_DIR = APP_DIR / ".claude" / "agents"                     # App-specific agents
 RESUMES_DIR = PROJECT_ROOT / "resumes"                          # Root-level shared data
 APPLICATIONS_DIR = PROJECT_ROOT / "job-applications"            # Root-level shared data
-DATA_DIR = PROJECT_ROOT / "data"                                # Root-level shared database
+DATA_DIR = APP_DIR / "data"                                     # App-specific database (DEV-53)
 MASTER_RESUME = RESUMES_DIR / "kris-cernjavic-resume.yaml"
 CAREER_HISTORY = RESUMES_DIR / "career-history.yaml"
 

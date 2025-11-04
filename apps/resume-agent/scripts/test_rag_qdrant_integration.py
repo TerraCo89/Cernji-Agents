@@ -31,7 +31,7 @@ class TestRagQdrantIntegration:
     """Integration tests for RAG pipeline with Qdrant"""
 
     def __init__(self):
-        self.db_path = Path(__file__).parent.parent.parent.parent / "data" / "resume_agent.db"
+        self.db_path = Path(__file__).parent.parent / "data" / "resume_agent.db"
         self.qdrant_url = "http://localhost:6333"
         self.collection_name = "resume-agent-chunks"
         self.passed = 0

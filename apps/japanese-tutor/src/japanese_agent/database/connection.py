@@ -26,13 +26,16 @@ def get_database_path() -> str:
     Environment Variables:
         DATABASE_PATH: Custom database location (relative or absolute)
     """
+    # Default to app-specific database (DEV-53)
+    # Path relative to src/japanese_agent/database/ directory
+    # ../../data/japanese_agent.db resolves to apps/japanese-tutor/src/data/japanese_agent.db
     db_path = os.getenv("DATABASE_PATH", "../../data/japanese_agent.db")
 
     # Convert relative paths to absolute based on this file's location
     if not os.path.isabs(db_path):
-        # Get the directory containing this file
+        # Get the directory containing this file (src/japanese_agent/database/)
         current_dir = Path(__file__).parent
-        # Resolve relative to project root (2 levels up from database/)
+        # Resolve relative path
         db_path = str((current_dir / db_path).resolve())
 
     # Ensure parent directory exists

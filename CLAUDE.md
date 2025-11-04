@@ -54,7 +54,27 @@ Then configure Claude Desktop (see [QUICKSTART.md](QUICKSTART.md))
 - **[QUICKSTART.md](QUICKSTART.md)** - Get started in 5 minutes
 - **[README-MCP-SERVER.md](README-MCP-SERVER.md)** - Complete feature guide
 - **[DEPLOYMENT.md](DEPLOYMENT.md)** - Production deployment guide
+- **[DATABASE_ARCHITECTURE.md](DATABASE_ARCHITECTURE.md)** - Database location standards (DEV-53)
 - **[library-docs/](library-docs/)** - Claude Code & Agent SDK references
+
+## Database Architecture
+
+**Important**: All apps follow app-specific database pattern (DEV-53):
+- `apps/{app-name}/data/{app-name}.db`
+
+**Shared Databases** (exceptions):
+- `data/events.db` - Observability server (cross-app event tracking)
+
+**Documentation**: See [DATABASE_ARCHITECTURE.md](DATABASE_ARCHITECTURE.md) for:
+- Database location standards
+- MCP configuration patterns
+- Migration procedures
+- Validation script usage
+
+**Validation**:
+```bash
+python scripts/validate-database-locations.py
+```
 
 ## Development Practices
 

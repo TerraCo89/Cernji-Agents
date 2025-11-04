@@ -21,7 +21,7 @@ import sys
 from pathlib import Path
 
 # Database path
-DB_PATH = Path(__file__).parent.parent.parent.parent / "data" / "resume_agent.db"
+DB_PATH = Path(__file__).parent.parent / "data" / "resume_agent.db"
 
 
 def create_tables(conn: sqlite3.Connection) -> None:

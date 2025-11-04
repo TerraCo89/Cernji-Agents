@@ -15,8 +15,8 @@ file_patterns:
 
 # MCP Agent Settings (for japanese_agent.py)
 mcp_agent:
-  # Database path (relative to project root)
-  database_path: "../../data/japanese_agent.db"
+  # Database path (app-specific, relative to japanese-tutor app)
+  database_path: "src/data/japanese_agent.db"
 
   # OCR confidence threshold (0.0-1.0)
   # Text segments below this confidence will be flagged for review
