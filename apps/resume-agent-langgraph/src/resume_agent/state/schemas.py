@@ -203,6 +203,33 @@ class WorkflowProgress(TypedDict, total=False):
 
 
 # ============================================================================
+# WORKFLOW-SPECIFIC STATE SCHEMAS
+# ============================================================================
+
+class JobAnalysisState(TypedDict, total=False):
+    """
+    State schema for job analysis workflow nodes.
+
+    This is a focused subset of ResumeAgentState containing only the fields
+    needed for job analysis operations (check_cache, fetch_job, analyze_job).
+
+    Fields:
+        job_url: URL of the job posting to analyze
+        job_content: Raw job posting content (fetched from URL)
+        job_analysis: Structured analysis data (output)
+        cached: Whether analysis was loaded from cache
+        errors: List of error messages from workflow steps
+        duration_ms: Time taken for fetch/analysis operations
+    """
+    job_url: str
+    job_content: Optional[str]
+    job_analysis: Optional[JobAnalysisDict]
+    cached: bool
+    errors: List[str]
+    duration_ms: float
+
+
+# ============================================================================
 # MAIN STATE SCHEMA
 # ============================================================================
 
@@ -241,6 +268,18 @@ class ResumeAgentState(TypedDict):
     messages: Annotated[List[BaseMessage], add_messages]
 
     # ========== JOB APPLICATION DATA ==========
+
+    # Current job URL being analyzed
+    job_url: Annotated[
+        Optional[str],
+        replace_with_latest
+    ]
+
+    # Raw job posting content (before LLM analysis)
+    job_content: Annotated[
+        Optional[str],
+        replace_with_latest
+    ]
 
     # Current job analysis (replace with latest)
     job_analysis: Annotated[
@@ -337,6 +376,8 @@ def create_initial_state(user_id: str = "default") -> ResumeAgentState:
     """
     return {
         "messages": [],
+        "job_url": None,
+        "job_content": None,
         "job_analysis": None,
         "master_resume": None,
         "tailored_resume": None,

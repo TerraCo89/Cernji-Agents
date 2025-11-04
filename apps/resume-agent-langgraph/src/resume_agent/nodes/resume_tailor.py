@@ -12,7 +12,7 @@ import json
 import time
 from pathlib import Path
 
-from ..state import ResumeTailoringState
+from ..state import ResumeAgentState
 from ..llm import call_llm
 from ..prompts import RESUME_TAILORING_PROMPT
 from ..tools import load_master_resume, calculate_keyword_match, calculate_ats_score
@@ -24,7 +24,7 @@ RESUMES_DIR = PROJECT_ROOT / "resumes"
 MASTER_RESUME = RESUMES_DIR / "kris-cernjavic-resume.yaml"
 
 
-def load_resume_node(state: ResumeTailoringState) -> dict:
+def load_resume_node(state: ResumeAgentState) -> dict:
     """
     Load master resume from default location.
 
@@ -74,7 +74,7 @@ def load_resume_node(state: ResumeTailoringState) -> dict:
         }
 
 
-def analyze_requirements_node(state: ResumeTailoringState) -> dict:
+def analyze_requirements_node(state: ResumeAgentState) -> dict:
     """
     Analyze job requirements and calculate initial ATS score.
 
@@ -169,7 +169,7 @@ def analyze_requirements_node(state: ResumeTailoringState) -> dict:
         }
 
 
-def tailor_resume_node(state: ResumeTailoringState) -> dict:
+def tailor_resume_node(state: ResumeAgentState) -> dict:
     """
     Tailor resume content for specific job using LLM.
 
@@ -277,7 +277,7 @@ def tailor_resume_node(state: ResumeTailoringState) -> dict:
         }
 
 
-def validate_tailoring_node(state: ResumeTailoringState) -> dict:
+def validate_tailoring_node(state: ResumeAgentState) -> dict:
     """
     Validate tailored resume by calculating final ATS score.
 

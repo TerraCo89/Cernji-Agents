@@ -1,0 +1,105 @@
+# Japanese Learning Agent with LangGraph
+# A conversational agent for learning Japanese through game screenshots
+
+[project]
+name = "japanese-agent"
+version = "0.1.0"
+description = "Japanese learning agent with screenshot OCR, vocabulary tracking, and flashcard reviews"
+readme = "README.md"
+requires-python = ">=3.11"
+license = {text = "MIT"}
+authors = [
+    {name = "Your Name", email = "your.email@example.com"}
+]
+
+dependencies = [
+    # LangGraph and LangChain
+    "langgraph>=0.2.52",
+    "langchain>=0.3.14",
+    "langchain-core>=0.3.27",
+    "langchain-anthropic>=0.3.6",
+    "langchain-openai>=0.3.0",
+
+    # Anthropic and OpenAI SDKs
+    "anthropic>=0.40.0",
+    "openai>=1.58.1",
+
+    # OCR and Japanese Processing
+    "manga-ocr>=0.1.9",
+    "jamdict>=0.1a11",
+    "Pillow>=10.0.0",
+    "opencv-python>=4.8.0",
+
+    # File watching (for screenshot watcher)
+    "watchdog>=3.0.0",
+
+    # Configuration and validation
+    "pydantic>=2.10.3",
+    "pydantic-settings>=2.7.0",
+    "python-dotenv>=1.0.0",
+    "pyyaml>=6.0.0",
+
+    # Database
+    "aiosqlite>=0.19.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.0",
+    "pytest-cov>=4.1.0",
+    "pytest-asyncio>=0.21.0",
+    "black>=23.7.0",
+    "ruff>=0.0.287",
+    "mypy>=1.5.0",
+]
+
+# LangGraph CLI (for local development)
+langgraph = [
+    "langgraph-cli[inmem]>=0.1.58",
+]
+
+[build-system]
+requires = ["setuptools>=68.0.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = [
+    "-v",
+    "--strict-markers",
+    "--tb=short",
+]
+asyncio_mode = "auto"
+
+[tool.black]
+line-length = 100
+target-version = ['py311']
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+select = [
+    "E",  # pycodestyle errors
+    "W",  # pycodestyle warnings
+    "F",  # pyflakes
+    "I",  # isort
+    "B",  # flake8-bugbear
+    "C4", # flake8-comprehensions
+]
+ignore = [
+    "E501",  # line too long (handled by black)
+    "B008",  # do not perform function calls in argument defaults
+    "C901",  # too complex
+]
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true

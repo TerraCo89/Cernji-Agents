@@ -3,7 +3,7 @@
 from langgraph.graph import StateGraph, START, END
 from langgraph.checkpoint.memory import MemorySaver
 
-from ..state import ResumeTailoringState
+from ..state import ResumeAgentState
 from ..nodes import (
     load_resume_node,
     analyze_requirements_node,
@@ -38,7 +38,7 @@ def build_resume_tailoring_graph() -> StateGraph:
         Compiled StateGraph with MemorySaver checkpointer for persistence
     """
     # Create graph
-    graph = StateGraph(ResumeTailoringState)
+    graph = StateGraph(ResumeAgentState)
 
     # Add nodes
     graph.add_node("load_resume", load_resume_node)

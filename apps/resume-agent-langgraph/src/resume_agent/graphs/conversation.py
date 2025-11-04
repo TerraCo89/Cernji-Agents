@@ -3,11 +3,11 @@
 from langgraph.graph import StateGraph, START, END
 from langgraph.checkpoint.memory import MemorySaver
 
-from ..state import ConversationState
+from ..state import ResumeAgentState
 from ..nodes import chat_node, get_user_input_node
 
 
-def should_continue(state: ConversationState) -> str:
+def should_continue(state: ResumeAgentState) -> str:
     """
     Determine if conversation should continue.
 
@@ -35,7 +35,7 @@ def build_conversation_graph() -> StateGraph:
         Compiled StateGraph with checkpointer
     """
     # Create graph
-    graph = StateGraph(ConversationState)
+    graph = StateGraph(ResumeAgentState)
 
     # Add nodes
     graph.add_node("get_input", get_user_input_node)

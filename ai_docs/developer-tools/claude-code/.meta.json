@@ -1,0 +1,27 @@
+{
+  "library_name": "Claude Code",
+  "context7_id": "/anthropics/claude-code",
+  "category": "developer-tools",
+  "last_updated": "2025-10-31T00:00:00Z",
+  "version": "latest",
+  "fetches": [
+    {
+      "topic": "custom slash commands",
+      "file": "custom-slash-commands.md",
+      "tokens": 5000,
+      "fetched_at": "2025-10-31T00:00:00Z"
+    },
+    {
+      "topic": "slash command examples (simple and advanced)",
+      "file": "slash-command-examples.md",
+      "source": "Research from GitHub repositories, official docs, and community resources",
+      "repositories": [
+        "anthropics/claude-code",
+        "hesreallyhim/awesome-claude-code",
+        "wshobson/commands",
+        "qdhenry/Claude-Command-Suite"
+      ],
+      "fetched_at": "2025-10-31T00:00:00Z"
+    }
+  ]
+}

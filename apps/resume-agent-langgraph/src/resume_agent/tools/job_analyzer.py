@@ -5,7 +5,7 @@ from datetime import datetime
 from typing import Any
 
 import httpx
-
+from langchain_core.tools import tool
 
 def fetch_job_posting(job_url: str) -> str:
     """
@@ -160,29 +160,38 @@ def parse_job_posting(job_content: str) -> dict[str, Any]:
     return result
 
 
-def analyze_job_posting(job_url: str) -> dict[str, Any]:
-    """
-    Fetch and analyze a job posting from a URL.
+@tool
+def analyze_job_posting(job_url: str) -> str:
+    """Start job analysis workflow for a given URL.
 
-    This is the main entry point that combines fetching and parsing.
-    It handles errors gracefully and returns all job information plus metadata.
+    This tool triggers the browser-based job scraping and analysis workflow.
+    The workflow will:
+    1. Check if the job has been analyzed before (cache)
+    2. If not cached, scrape the job posting using browser automation
+    3. Analyze the job posting with an LLM to extract structured data
+    4. Store the results in state
 
     Args:
         job_url: URL of the job posting to analyze
 
     Returns:
-        Dictionary containing:
-        - All fields from parse_job_posting()
-        - url: Original job URL
-        - fetched_at: ISO 8601 timestamp
-        - errors: List of error messages (empty if successful)
+        Message indicating that job analysis has started
+    """
+    # Tool returns a message - the actual workflow is triggered by
+    # the graph routing which detects job_url is set in state
+    return f"Starting job analysis for: {job_url}\n\nI'll use browser automation to fetch and analyze this job posting."
 
-    Example:
-        >>> result = analyze_job_posting("https://example.com/job/123")
-        >>> print(result["company"])
-        "Example Corp"
-        >>> print(result["errors"])
-        []
+
+# Legacy implementation kept for reference
+# The browser automation workflow in nodes/job_analysis.py replaces this
+def _legacy_analyze_job_posting(job_url: str) -> dict[str, Any]:
+    """Legacy HTTP-based job analysis (replaced by browser automation workflow).
+
+    Args:
+        job_url: URL of the job posting to analyze
+
+    Returns:
+        Dictionary containing job information
     """
     errors: list[str] = []
 

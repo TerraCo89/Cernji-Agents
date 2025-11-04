@@ -52,6 +52,9 @@ cd apps/resume-agent-langgraph
 # Install dependencies including LangGraph CLI
 pip install -e . "langgraph-cli[inmem]"
 
+# Install Playwright browsers (required for web scraping)
+playwright install chromium
+
 # Copy environment template
 cp .env.example .env
 

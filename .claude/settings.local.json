@@ -63,7 +63,8 @@
       "Skill(doc-fetcher)",
       "Bash(uv python list:*)",
       "Bash(git branch:*)",
-      "Bash(git log:*)"
+      "Bash(git log:*)",
+      "mcp__linear__get_issue"
     ],
     "deny": [],
     "ask": []
