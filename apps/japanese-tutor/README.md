@@ -18,9 +18,11 @@ Based on the [agentic drop zones pattern](https://github.com/disler/agentic-drop
 
 ### Learning Agent (NEW - MCP Server)
 - **Hybrid OCR**: Claude Vision API + manga-ocr for accurate text extraction
-- **Vocabulary Tracking**: Automatic vocabulary database with study status (new/learning/known)
-- **Flashcard System**: SM-2 spaced repetition algorithm for optimal learning
-- **Learning Statistics**: Track progress, encounter counts, review performance
+- **Database Persistence**: SQLite database with 13 tables, WAL mode, async operations
+- **Vocabulary Tracking**: Comprehensive vocabulary management with status (new/learning/reviewing/mastered/suspended)
+- **Flashcard System**: Complete SM-2 spaced repetition implementation with ease factor adjustments
+- **Learning Statistics**: Track progress, encounter counts, review performance with indexed queries
+- **Test Coverage**: 45+ integration tests covering all database operations
 - **MCP Integration**: Works with Claude Desktop and other MCP clients
 - **Offline Capable**: Local OCR and dictionary (manga-ocr + jamdict)
 
@@ -208,16 +210,23 @@ Find the word "ポケモン" in my vocabulary
 
 #### Available MCP Tools
 
+All tools below use SQLite database persistence with async operations:
+
+**Screenshot Analysis:**
 - `analyze_screenshot(image_path)` - Extract and analyze Japanese text
-- `get_vocabulary(vocab_id)` - Get vocabulary entry
-- `list_vocabulary(status_filter, limit)` - List vocabulary by status
-- `update_vocab_status(vocab_id, status)` - Update study status
-- `search_vocabulary(query)` - Search vocabulary
-- `get_vocab_stats()` - Get learning statistics
-- `create_flashcard(vocab_id, screenshot_id)` - Create flashcard
-- `get_due_flashcards(limit)` - Get due flashcards
-- `update_flashcard_review(flashcard_id, rating)` - Record review
-- `get_review_stats()` - Get review statistics
+
+**Vocabulary Management** (Database-backed):
+- `get_vocabulary(vocab_id)` - Get vocabulary entry from database
+- `list_vocabulary(status_filter, limit)` - List vocabulary by status (indexed query)
+- `update_vocab_status(vocab_id, status)` - Update study status with validation
+- `search_vocabulary(query)` - Search vocabulary by Japanese text or English meaning
+- `get_vocab_stats()` - Get aggregate learning statistics
+
+**Flashcard Management** (Database-backed with SM-2):
+- `create_flashcard(vocab_id, screenshot_id)` - Create flashcard with default ease factor 2.5
+- `get_due_flashcards(limit)` - Get flashcards due for review (optimized with composite index)
+- `update_flashcard_review(flashcard_id, rating)` - Record review and update SM-2 schedule
+- `get_review_stats()` - Get review performance metrics
 
 #### Slash Commands
 
@@ -228,6 +237,27 @@ You can also use slash commands directly in Claude Code:
 - `/japanese:vocab-stats` - Show statistics
 - `/japanese:review` - Start flashcard review
 - `/japanese:flashcards` - Manage flashcards
+
+### Database Architecture
+
+The Learning Agent uses a comprehensive SQLite database for vocabulary and flashcard management:
+
+**Features:**
+- **13 tables**: vocabulary, kanji, flashcards, reviews, screenshots, sources, tags, relationships
+- **WAL mode**: Write-Ahead Logging for concurrent read/write operations
+- **Async operations**: All database queries use `aiosqlite` for async I/O
+- **Optimized indexes**: Fast queries for due flashcards, vocabulary search, review analytics
+- **Data validation**: CHECK constraints and foreign key cascades
+- **SM-2 algorithm**: Full spaced repetition implementation with ease factor adjustments
+
+**Database Location:** `../../data/japanese_agent.db` (configurable via `DATABASE_PATH` environment variable)
+
+**Developer Documentation:** See [DATABASE_USAGE.md](DATABASE_USAGE.md) for comprehensive database guide including:
+- Schema details and relationships
+- Tool function usage examples
+- SM-2 algorithm explanation
+- Testing guidelines
+- Performance optimization tips
 
 ## ⚙️ Configuration
 

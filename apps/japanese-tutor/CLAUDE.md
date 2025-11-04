@@ -1,13 +1,35 @@
 # Japanese Learning Agent - Claude Code Guidance
 
 ## Purpose
-This app helps you learn Japanese by analyzing game screenshots with hybrid OCR (Claude Vision API + manga-ocr), tracking vocabulary progress, and managing flashcard reviews through conversational Claude Code agents.
+This app helps you learn Japanese by analyzing game screenshots with hybrid OCR (Claude Vision API + manga-ocr), tracking vocabulary progress, and managing flashcard reviews through conversational agents.
 
-**Architecture**: MCP server with data-agnostic agents and centralized data access layer
+**Two Architectures Available:**
+
+1. **LangGraph Agent (NEW)** - Conversational learning agent
+   - Full stateful conversation with checkpointing
+   - LangGraph Studio integration for visualization
+   - Multi-turn dialogue with context awareness
+   - See [LANGGRAPH_SETUP.md](LANGGRAPH_SETUP.md) for details
+
+2. **MCP Server** - Tool-based interface for Claude Desktop
+   - Single-file MCP server with FastMCP 2.0
+   - Centralized data access layer
+   - Tool-based workflow
 
 ## Quick Start
 
-**Start the MCP server:**
+### Option 1: LangGraph Agent (Recommended for Development)
+
+```bash
+cd apps/japanese-tutor
+pip install -e .
+langgraph dev
+```
+
+Opens LangGraph Studio for interactive development.
+
+### Option 2: MCP Server (For Claude Desktop)
+
 ```bash
 cd apps/japanese-tutor
 uv run japanese_agent.py
@@ -55,7 +77,30 @@ Located in `.claude/commands/`:
 
 ## Architecture: Data Access Layer
 
-**Key Principle:** Centralized data access with Pydantic validation
+**Key Principle:** Centralized data access with Pydantic validation and SQLite persistence
+
+### Database Layer
+
+The app uses a comprehensive SQLite database with async operations via `aiosqlite`:
+
+- **Location**: `src/japanese_agent/database/`
+  - `connection.py` - Async connection manager with WAL mode
+  - `schema.sql` - Complete 13-table database schema
+  - `__init__.py` - Module exports
+
+- **Features**:
+  - **WAL Mode**: Write-Ahead Logging for concurrent read/write operations
+  - **13 Tables**: Vocabulary, kanji, flashcards, reviews, screenshots, sources, tags, relationships
+  - **Indexes**: Optimized for common queries (due flashcards, vocabulary search, review analytics)
+  - **Constraints**: CHECK constraints for data validation, foreign key cascades
+  - **Triggers**: Automatic timestamp updates on record modifications
+  - **SM-2 Algorithm**: Complete spaced repetition implementation in flashcard tools
+
+- **Tools**:
+  - `src/japanese_agent/tools/vocabulary_manager.py` - Database-backed vocabulary operations
+  - `src/japanese_agent/tools/flashcard_manager.py` - SM-2 flashcard scheduling with database persistence
+
+See [DATABASE_USAGE.md](DATABASE_USAGE.md) for comprehensive developer guide.
 
 ### Agent Responsibilities
 
@@ -132,41 +177,76 @@ Screenshot detected
 ### Testing
 
 ```bash
-# Run all tests
-cd ../../tests
-pytest -v
+# Run all integration tests
+cd apps/japanese-tutor
+pytest tests/integration/ -v
 
 # Run specific test suites
-pytest tests/contract/ -v  # Contract tests
-pytest tests/unit/ -v      # Unit tests
-pytest tests/integration/ -v  # Integration tests
+pytest tests/integration/test_database_setup.py -v      # Database schema validation
+pytest tests/integration/test_vocabulary_database.py -v # Vocabulary CRUD operations
+pytest tests/integration/test_flashcard_database.py -v  # Flashcard & SM-2 algorithm
+pytest tests/integration/test_full_workflow.py -v       # End-to-end learning workflows
+pytest tests/integration/test_graph.py -v               # LangGraph agent tests
 
 # Run with coverage
-pytest --cov=apps/japanese-tutor --cov-report=html
+pytest tests/integration/ --cov=src/japanese_agent --cov-report=html
+
+# Quick validation (syntax + imports)
+python -m compileall -q . && pytest --collect-only -q
 ```
+
+**Test Coverage**: 45+ integration tests covering:
+- Database schema creation and validation
+- Vocabulary search, filtering, and status updates
+- Flashcard creation and SM-2 interval calculations
+- Review session recording and statistics
+- Complete learning workflows with error handling
+- WAL mode concurrent access verification
 
 ## Database Schema
 
-### Tables
+### 13 Tables
 
-1. **screenshots** - Processed screenshots with OCR results
-2. **vocabulary** - Unique Japanese words/phrases
-3. **flashcards** - Study cards for spaced repetition
-4. **review_sessions** - Individual review records
+#### Core Entities
+1. **vocabulary** - Japanese vocabulary entries with readings, meanings, JLPT levels
+2. **kanji** - Individual kanji characters with metadata (readings, meanings, stroke count)
+3. **sources** - Content sources (games, manga, websites)
+4. **screenshots** - Processed screenshots with OCR results
+
+#### Learning System
+5. **flashcards** - Spaced repetition flashcards with SM-2 scheduling
+6. **review_sessions** - Individual review records with quality ratings
+7. **study_goals** - User-defined learning goals and progress tracking
+8. **example_sentences** - Usage examples for vocabulary entries
+
+#### Relationships
+9. **screenshot_vocabulary** - Links screenshots to extracted vocabulary
+10. **vocabulary_kanji** - Links vocabulary to component kanji
+11. **tags** - User-defined tags for organization
+12. **vocabulary_tags** - Links vocabulary to tags
+
+#### System
+13. **_migration_backup** - Schema version tracking and migration history
 
 ### Key Relationships
 
-- Screenshot → Vocabulary (many-to-many via extracted text)
-- Vocabulary → Flashcard (one-to-many)
-- Flashcard → ReviewSession (one-to-many)
+```
+vocabulary ←──┬── flashcards ←── review_sessions
+              ├── screenshot_vocabulary ──→ screenshots
+              ├── vocabulary_kanji ──→ kanji
+              ├── vocabulary_tags ──→ tags
+              └── example_sentences
+```
 
 ### Study Status Workflow
 
 ```
-new → learning → known
- ↓       ↓        ↓
- ←───────┴────────┘ (manual reset possible)
+new → learning → reviewing → mastered
+ ↓       ↓          ↓           ↓
+ ←──────┴──────────┴───────────┘ (suspended)
 ```
+
+**Valid Statuses**: `new`, `learning`, `reviewing`, `mastered`, `suspended`
 
 ## SM-2 Spaced Repetition Algorithm
 
@@ -261,6 +341,10 @@ When making changes:
 
 ## References
 
+### Internal Documentation
+
+- **Database Usage Guide**: [DATABASE_USAGE.md](DATABASE_USAGE.md) - Comprehensive database developer guide
+- **LangGraph Setup**: [LANGGRAPH_SETUP.md](LANGGRAPH_SETUP.md) - LangGraph agent configuration
 - **Specification**: `specs/003-japanese-learning-agent/spec.md`
 - **Implementation Plan**: `specs/003-japanese-learning-agent/plan.md`
 - **Research**: `specs/003-japanese-learning-agent/research.md`
@@ -270,11 +354,13 @@ When making changes:
 
 ### External Documentation
 
-- [manga-ocr](https://github.com/kha-white/manga-ocr)
-- [jamdict](https://jamdict.readthedocs.io/)
-- [SM-2 Algorithm](https://www.supermemo.com/en/archives1990-2015/english/ol/sm2)
-- [FastMCP Documentation](https://github.com/anthropics/fastmcp)
-- [Pydantic V2](https://docs.pydantic.dev/latest/)
+- [manga-ocr](https://github.com/kha-white/manga-ocr) - OCR for Japanese manga/game text
+- [jamdict](https://jamdict.readthedocs.io/) - Japanese dictionary library
+- [SM-2 Algorithm](https://www.supermemo.com/en/archives1990-2015/english/ol/sm2) - Spaced repetition algorithm
+- [FastMCP Documentation](https://github.com/anthropics/fastmcp) - MCP server framework
+- [Pydantic V2](https://docs.pydantic.dev/latest/) - Data validation library
+- [aiosqlite](https://aiosqlite.omnilib.dev/) - Async SQLite library
+- [SQLite WAL Mode](https://www.sqlite.org/wal.html) - Write-Ahead Logging documentation
 
 ## License
 

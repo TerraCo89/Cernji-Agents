@@ -1,6 +1,6 @@
 ---
-description: Fetch and parse a job posting, caching the structured data locally OR search the database for cached job analysis
-allowed-tools: mcp__playwright__browser_navigate, mcp__playwright__browser_snapshot, mcp__playwright__browser_close, mcp__resume-agent__data_read_job_analysis, mcp__resume-agent__data_write_job_analysis, mcp__resume-agent__data_list_applications, Task, Skill
+description: Fetch and parse a job posting, automatically saving to database OR search database for cached job analysis
+allowed-tools: mcp__playwright__browser_navigate, mcp__playwright__browser_snapshot, mcp__playwright__browser_close, mcp__sqlite-resume__query, mcp__sqlite-resume__create_record, Bash, Task, Skill
 argument-hint: [job-url OR --company "Name" --title "Title"]
 ---
 
@@ -10,7 +10,7 @@ Arguments: $ARGUMENTS
 
 ## Purpose
 This command supports two modes:
-1. **URL Mode**: Fetches a job posting from a URL, extracts structured data, and caches it to the database
+1. **URL Mode**: Fetches a job posting from a URL, extracts structured data, and **automatically saves to database**
 2. **Database Search Mode**: Searches the database for cached job analysis using company name and job title
 
 Both operations are atomic and idempotent - running multiple times is safe.
@@ -39,41 +39,54 @@ Example parsing:
 - Result: company="Cookpad", job_title="Conversational AI Engineer"
 
 ### Step 2B: Search Database
-Query the database for cached job analysis:
+Query the database for cached job analysis using SQL:
+```sql
+SELECT
+  ja.*,
+  GROUP_CONCAT(DISTINCT CASE WHEN jq.qualification_type = 'required' THEN jq.description END) as required_quals,
+  GROUP_CONCAT(DISTINCT CASE WHEN jq.qualification_type = 'preferred' THEN jq.description END) as preferred_quals,
+  GROUP_CONCAT(DISTINCT jr.description) as responsibilities,
+  GROUP_CONCAT(DISTINCT jk.keyword) as keywords
+FROM job_applications ja
+LEFT JOIN job_qualifications jq ON ja.id = jq.job_id
+LEFT JOIN job_responsibilities jr ON ja.id = jr.job_id
+LEFT JOIN job_keywords jk ON ja.id = jk.job_id
+WHERE ja.company = ? AND ja.job_title = ?
+GROUP BY ja.id
 ```
-result = mcp__resume-agent__data_read_job_analysis(company, job_title)
-```
+
+Use `mcp__sqlite-resume__query` to execute this.
 
 ### Step 3B: Handle Search Result
 
-**If found (status="success"):**
+**If found:**
 Output the cached job analysis:
 ```
-✓ Job analysis found in database
+✓ Job analysis found in database (ID: {id})
 
 Company: {company}
 Role: {job_title}
 Location: {location}
 Salary: {salary_range} (if available)
 
-Required skills: {count}
-Preferred skills: {count}
-Key responsibilities: {count}
+Required qualifications: {count}
+Preferred qualifications: {count}
+Responsibilities: {count}
 ATS keywords: {count}
 
 Source: {url}
-Fetched at: {fetched_at}
+Fetched: {fetched_at}
 ```
 
-**If not found (status="error"):**
-1. Call `mcp__resume-agent__data_list_applications()` to get all cached jobs
+**If not found:**
+1. Query all cached jobs: `SELECT company, job_title, fetched_at FROM job_applications ORDER BY created_at DESC LIMIT 10`
 2. Output:
 ```
 ✗ Job analysis not found for: {company} - {job_title}
 
-Available cached jobs in database:
-1. {company1} - {role1}
-2. {company2} - {role2}
+Recent cached jobs in database:
+1. {company1} - {role1} (fetched {date})
+2. {company2} - {role2} (fetched {date})
 ...
 
 To fetch a new job posting, run:
@@ -85,90 +98,181 @@ To fetch a new job posting, run:
 ## URL MODE (URL provided)
 
 ### Step 1A: Check if Already Cached
-1. Extract company and job title from the URL (or ask user if not clear from URL)
-2. Check if job analysis already exists:
+First check if we already have this job in the database:
+```sql
+SELECT id, company, job_title FROM job_applications WHERE url = ?
 ```
-result = mcp__resume-agent__data_read_job_analysis(company, job_title)
-```
-3. If it exists (status="success"), skip to Step 5A and return the cached data
+
+If found, inform user and skip to Step 5A (return cached data).
 
 ### Step 2A: Fetch the Job Posting
 Use Playwright to navigate to the URL and capture the page content:
-1. Use mcp__playwright__browser_navigate to load the job posting URL
-2. Use mcp__playwright__browser_snapshot to capture the accessible page content
-3. Use mcp__playwright__browser_close to clean up
+1. Use `mcp__playwright__browser_navigate` to load the job posting URL
+2. Use `mcp__playwright__browser_snapshot` to capture the accessible page content
+3. Use `mcp__playwright__browser_close` to clean up
 4. Extract the main job description text from the snapshot
 
-### Step 3A: Parse with Job Analyzer Agent
-1. Invoke the job-analyzer skill using Skill(job-analyzer) to extract structured information
-2. Provide the full job posting text to the skill
-3. Request the skill return data in this JSON format:
-```json
-{
-  "url": "original URL",
-  "fetched_at": "ISO timestamp (current time)",
-  "company": "Company Name",
-  "job_title": "Job Title",
-  "location": "Location/Remote",
-  "salary_range": "Salary if available",
-  "required_qualifications": ["req1", "req2"],
-  "preferred_qualifications": ["pref1", "pref2"],
-  "responsibilities": ["resp1", "resp2"],
-  "keywords": ["keyword1", "keyword2"],
-  "candidate_profile": "2-3 sentence description of ideal candidate",
-  "raw_description": "full job posting text"
+### Step 3A: Parse Job Posting
+Extract structured information from the page content:
+
+**Required Fields:**
+- company (string): Company name
+- job_title (string): Job title
+- location (string): Location or "Remote"
+- candidate_profile (string): 2-3 sentence ideal candidate description
+- raw_description (string): Full job posting text
+- url (string): Original URL
+- fetched_at (string): Current ISO timestamp
+- required_qualifications (array): At least 1 item
+- responsibilities (array): At least 1 item
+- keywords (array): 10-15 ATS keywords
+
+**Optional Fields:**
+- salary_range (string/null): Salary if listed
+- preferred_qualifications (array): Nice-to-have skills
+
+Parse the snapshot content to extract these fields. You can do this inline or use the job-analyzer skill if needed.
+
+### Step 4A: Save to Database Automatically
+**CRITICAL**: This step MUST execute automatically - never wait for user to ask.
+
+Save across 4 tables using Python script via Bash tool:
+
+```python
+import json
+import sqlite3
+from datetime import datetime
+
+# Prepare the job data dictionary with all parsed fields
+job_data = {
+    'url': '{url}',
+    'company': '{company}',
+    'job_title': '{job_title}',
+    'location': '{location}',
+    'salary_range': '{salary_range or None}',
+    'candidate_profile': '{candidate_profile}',
+    'raw_description': '{raw_description}',
+    'fetched_at': '{fetched_at}',
+    'required_qualifications': [list of strings],
+    'preferred_qualifications': [list of strings],
+    'responsibilities': [list of strings],
+    'keywords': [list of strings]
 }
+
+# Connect to database
+conn = sqlite3.connect('data/resume_agent.db')
+cursor = conn.cursor()
+
+try:
+    # 1. Insert main job application record
+    cursor.execute('''
+        INSERT INTO job_applications
+        (user_id, url, company, job_title, location, salary_range,
+         candidate_profile, raw_description, fetched_at, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ''', (
+        'default',
+        job_data['url'],
+        job_data['company'],
+        job_data['job_title'],
+        job_data['location'],
+        job_data['salary_range'],
+        job_data['candidate_profile'],
+        job_data['raw_description'],
+        job_data['fetched_at'],
+        datetime.now().isoformat(),
+        datetime.now().isoformat()
+    ))
+
+    job_id = cursor.lastrowid
+
+    # 2. Insert required qualifications
+    for qual in job_data['required_qualifications']:
+        cursor.execute(
+            'INSERT INTO job_qualifications (job_id, qualification_type, description) VALUES (?, ?, ?)',
+            (job_id, 'required', qual)
+        )
+
+    # 3. Insert preferred qualifications
+    for qual in job_data.get('preferred_qualifications', []):
+        cursor.execute(
+            'INSERT INTO job_qualifications (job_id, qualification_type, description) VALUES (?, ?, ?)',
+            (job_id, 'preferred', qual)
+        )
+
+    # 4. Insert responsibilities
+    for resp in job_data['responsibilities']:
+        cursor.execute(
+            'INSERT INTO job_responsibilities (job_id, description) VALUES (?, ?)',
+            (job_id, resp)
+        )
+
+    # 5. Insert keywords
+    for keyword in job_data['keywords']:
+        cursor.execute(
+            'INSERT INTO job_keywords (job_id, keyword) VALUES (?, ?)',
+            (job_id, keyword)
+        )
+
+    conn.commit()
+
+    # Success output (parse this to get job_id)
+    print(f'SUCCESS|job_id={job_id}|tables=4|records={1 + len(job_data["required_qualifications"]) + len(job_data.get("preferred_qualifications", [])) + len(job_data["responsibilities"]) + len(job_data["keywords"])}')
+
+except Exception as e:
+    conn.rollback()
+    print(f'ERROR|{str(e)}')
+    raise
+finally:
+    conn.close()
 ```
 
-### Step 4A: Save to Database
-Save the parsed job data using the MCP tool:
-```
-result = mcp__resume-agent__data_write_job_analysis(
-  company=job_data["company"],
-  job_title=job_data["job_title"],
-  job_data=job_data
-)
-```
-
-The MCP tool will:
-- Validate the data against the JobAnalysis schema
-- Save to the database (SQLite or file-based)
-- Return success status
+**Implementation Notes:**
+- Execute this Python code using the Bash tool
+- Parse the output to extract job_id (look for "SUCCESS|job_id=X")
+- If output contains "ERROR", report failure to user
+- The transaction is atomic - all or nothing
 
 ### Step 5A: Return Summary
-Output:
+After successful database save, output:
 ```
-✓ Job posting cached successfully
+✓ Job posting saved to database successfully
 
+Database ID: {job_id}
 Company: {company}
 Role: {job_title}
 Location: {location}
 Salary: {salary_range} (if available)
 
-Required skills: {count}
-Preferred skills: {count}
-Key responsibilities: {count}
-ATS keywords: {count}
+Database records created:
+- job_applications: 1 record
+- job_qualifications: {required + preferred} records
+- job_responsibilities: {count} records
+- job_keywords: {count} records
+Total: {total_records} records
 
-Data saved and validated. Ready for use by other commands.
+The job analysis is now available for:
+- /career:tailor-resume
+- /career:cover-letter
+- /career:analyze-job
 ```
 
 ## Error Handling
 
 ### URL Mode Errors:
-- If fetch fails: return clear error message with URL
-- If parsing fails: return error with details (job-analyzer should return JSON)
-- If validation fails: MCP tool will return validation errors
-- If save fails: MCP tool will return error details
+- **Fetch fails**: Return clear error message with URL, suggest checking URL accessibility
+- **Parsing fails**: Return partial data if possible, ask user for manual input of missing fields
+- **Database save fails**: Show SQL error, suggest checking database permissions/disk space
+- **Duplicate URL**: Inform user job already cached, show existing record
 
 ### Database Search Mode Errors:
-- If flags are missing: ask user to provide both `--company` and `--title`
-- If job not found: show list of all cached jobs in database
-- If database read fails: return error with details
+- **Flags missing**: Ask user to provide both `--company` and `--title` flags
+- **Job not found**: Show list of all cached jobs, suggest running with URL to fetch new job
+- **Database error**: Show SQL error, suggest checking database file exists
 
 ## Usage Examples
 
-### Fetch from URL (original behavior):
+### Fetch from URL (automatically saves to database):
 ```bash
 /career:fetch-job https://japan-dev.com/jobs/cookpad/conversational-ai-engineer
 ```
@@ -185,10 +289,9 @@ Data saved and validated. Ready for use by other commands.
 
 ## Important Notes
 
-- This command uses **MCP data tools** for database operations
-- Supports both SQLite and file-based storage backends (configured in .env)
-- The MCP tools handle validation using Pydantic schemas
-- All data is type-safe and validated before being saved
-- Database search is instant - no web fetching required
-- If job not found in DB, command shows all available cached jobs
-- You don't need to know about file paths or directory structures
+- **Database First**: This command always saves to SQLite database automatically
+- **No Manual Intervention**: User should never need to ask "save to database"
+- **Atomic Operations**: All database insertions happen in one transaction
+- **Idempotent**: Running the same URL twice checks for duplicates first
+- **Multi-Table**: Data is normalized across 4 tables for efficient querying
+- **Backward Compatible**: JSON files are no longer created (database is source of truth)

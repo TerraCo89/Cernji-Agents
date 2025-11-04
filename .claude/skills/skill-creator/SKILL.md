@@ -36,7 +36,8 @@ skill-name/
 └── Bundled Resources (optional)
     ├── scripts/          - Executable code (Python/Bash/etc.)
     ├── references/       - Documentation intended to be loaded into context as needed
-    └── assets/           - Files used in output (templates, icons, fonts, etc.)
+    ├── assets/           - Files used in output (templates, icons, fonts, etc.)
+    └── examples/         - Usage examples and sample code (optional, community pattern)
 ```
 
 #### SKILL.md (required)
@@ -54,6 +55,22 @@ Executable code (Python/Bash/etc.) for tasks that require deterministic reliabil
 - **Benefits**: Token efficient, deterministic, may be executed without loading into context
 - **Note**: Scripts may still need to be read by Claude for patching or environment-specific adjustments
 
+**Documenting scripts in SKILL.md:**
+```markdown
+## Bundled Resources
+
+### Scripts
+
+- **`scripts/init_skill.py`**: Creates new skill template. Usage: `python scripts/init_skill.py <name> --path <dir>`
+- **`scripts/package_skill.py`**: Validates and packages skills. Usage: `python scripts/package_skill.py <skill-folder>`
+```
+
+**Including dependencies:** If scripts require external packages, add a `scripts/requirements.txt`:
+```txt
+anthropic>=0.40.0
+pydantic>=2.0.0
+```
+
 ##### References (`references/`)
 
 Documentation and reference material intended to be loaded as needed into context to inform Claude's process and thinking.
@@ -65,6 +82,26 @@ Documentation and reference material intended to be loaded as needed into contex
 - **Best practice**: If files are large (>10k words), include grep search patterns in SKILL.md
 - **Avoid duplication**: Information should live in either SKILL.md or references files, not both. Prefer references files for detailed information unless it's truly core to the skill—this keeps SKILL.md lean while making information discoverable without hogging the context window. Keep only essential procedural instructions and workflow guidance in SKILL.md; move detailed reference material, schemas, and examples to references files.
 
+**Naming flexibility:** The directory can be named `references/` (plural) or `reference/` (singular). Standalone reference files at the skill root (`reference.md`, `forms.md`) are also acceptable. Be consistent within a single skill.
+
+**Linking pattern in SKILL.md:**
+```markdown
+## Bundled Resources
+
+### References
+
+- **`references/api_docs.md`**: API specification. Load when making API calls.
+- **`references/schema.md`**: Database schemas. Reference when writing queries.
+
+For advanced usage, see [reference documentation](./reference/details.md).
+```
+
+**Real-world example:** The mcp-builder skill uses emoji navigation for clarity:
+```markdown
+[📋 MCP Best Practices](./reference/mcp_best_practices.md)
+[🐍 Python Guide](./reference/python_mcp_server.md)
+```
+
 ##### Assets (`assets/`)
 
 Files not intended to be loaded into context, but rather used within the output Claude produces.
@@ -73,6 +110,36 @@ Files not intended to be loaded into context, but rather used within the output 
 - **Examples**: `assets/logo.png` for brand assets, `assets/slides.pptx` for PowerPoint templates, `assets/frontend-template/` for HTML/React boilerplate, `assets/font.ttf` for typography
 - **Use cases**: Templates, images, icons, boilerplate code, fonts, sample documents that get copied or modified
 - **Benefits**: Separates output resources from documentation, enables Claude to use files without loading them into context
+
+**Referencing assets in SKILL.md:**
+```markdown
+## Bundled Resources
+
+### Assets
+
+- **`assets/template.html`**: HTML boilerplate template. Copy this when creating new pages.
+- **`assets/logo.png`**: Company logo. Include in branding materials.
+
+To create a new project, copy the template:
+
+```bash
+cp -r assets/frontend-template/ ./new-project/
+```
+```
+
+##### Examples (optional)
+
+Code snippets, sample inputs/outputs, and usage demonstrations. While not an official bundled resource type, many skills use an `examples/` directory or `examples.md` file to provide concrete usage patterns.
+
+- **When to include**: When users benefit from seeing working examples before using the skill
+- **Format options**: `examples/` directory with multiple files, or `examples.md` at skill root
+- **Examples**: `examples/basic-usage.md`, `examples/advanced-patterns.md`, `examples/sample-output.json`
+
+**Referencing examples:**
+```markdown
+For usage examples, see [examples.md](./examples.md).
+For sample API responses, see `examples/api-response.json`.
+```
 
 ### Progressive Disclosure Design Principle
 
@@ -83,6 +150,95 @@ Skills use a three-level loading system to manage context efficiently:
 3. **Bundled resources** - As needed by Claude (Unlimited*)
 
 *Unlimited because scripts can be executed without reading into context window.
+
+### Bundled Resources Best Practices
+
+#### Documenting Resources in SKILL.md
+
+Create a dedicated "Bundled Resources" section near the end of SKILL.md that describes all included files:
+
+```markdown
+## Bundled Resources
+
+### References
+
+- **`references/api_docs.md`**: Complete API specification. Load when making API calls or integrating external services.
+- **`references/schema.md`**: Database schema documentation. Reference when writing queries or understanding data relationships.
+
+### Scripts
+
+- **`scripts/validate.py`**: Validates input data. Usage: `python scripts/validate.py <input-file>`
+- **`scripts/process.sh`**: Batch processing automation. Requires bash 4.0+
+
+### Assets
+
+- **`assets/template.html`**: Base HTML template. Copy and customize for new pages.
+- **`assets/config.json`**: Default configuration. Modify as needed for environment.
+
+### Examples
+
+- **`examples/basic-usage.md`**: Simple usage patterns for common tasks.
+- **`examples/advanced-patterns.md`**: Complex workflows and edge cases.
+```
+
+#### Linking Strategies
+
+**Relative path links:**
+```markdown
+For detailed API documentation, see [API Reference](./references/api_docs.md).
+```
+
+**Inline mentions:**
+```markdown
+Run `scripts/init.py` to initialize the environment.
+Copy the template from `assets/base-template/` to get started.
+```
+
+**Emoji navigation** (enhances scannability):
+```markdown
+[📋 Best Practices](./references/best_practices.md)
+[🐍 Python Guide](./references/python.md)
+[⚡ Quick Start](./references/quickstart.md)
+```
+
+#### Directory Naming Conventions
+
+**Flexibility:** Directory names can vary based on preference:
+- `references/` vs `reference/` (both acceptable)
+- Standalone files at root (`reference.md`, `forms.md`) instead of directories
+- Be consistent within a single skill
+
+**File naming:**
+- Use descriptive names: `mcp_best_practices.md` not `best.md`
+- Use underscores or hyphens: `api_docs.md` or `api-docs.md`
+- Group related files in subdirectories when helpful
+
+#### Organizing Large Skills
+
+For skills with many bundled resources:
+
+**Group by type:**
+```
+skill-name/
+├── SKILL.md
+├── references/
+│   ├── api/
+│   │   ├── authentication.md
+│   │   └── endpoints.md
+│   └── guides/
+│       ├── quickstart.md
+│       └── advanced.md
+└── scripts/
+    ├── setup/
+    │   └── init.py
+    └── utils/
+        └── validate.py
+```
+
+**Progressive loading tips:**
+- For reference files >10k words, include grep search patterns in SKILL.md
+- Break large references into topic-specific files
+- Link to specific sections when possible: `[Auth Guide](./references/api/authentication.md#oauth2)`
 
 ## Skill Creation Process
 

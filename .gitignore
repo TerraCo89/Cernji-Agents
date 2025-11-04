@@ -1,5 +1,7 @@
 # LangGraph
 *.langgraph/
+.langgraph_api/
+*.pckl
 
 # Python
 __pycache__/
