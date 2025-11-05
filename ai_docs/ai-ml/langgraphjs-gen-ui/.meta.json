@@ -1,0 +1,15 @@
+{
+  "library_name": "LangGraph.js Generative UI Examples",
+  "context7_id": "/langchain-ai/langgraphjs-gen-ui-examples",
+  "category": "ai-ml",
+  "last_updated": "2025-11-05T00:00:00Z",
+  "version": "latest",
+  "fetches": [
+    {
+      "topic": "general",
+      "file": "README.md",
+      "tokens": 5000,
+      "fetched_at": "2025-11-05T00:00:00Z"
+    }
+  ]
+}

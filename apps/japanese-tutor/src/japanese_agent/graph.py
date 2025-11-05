@@ -24,6 +24,9 @@ from dotenv import load_dotenv
 # Import state schema
 from japanese_agent.state.schemas import JapaneseAgentState
 
+# Import nodes
+from japanese_agent.nodes import emit_screenshot_ui
+
 # Import tools
 from japanese_agent.tools import (
     # Screenshot analysis
@@ -388,6 +391,9 @@ graph_builder.add_node("chatbot", chatbot)
 tool_node = ToolNode(tools=tools)
 graph_builder.add_node("tools", tool_node)
 
+# Add screenshot UI emission node
+graph_builder.add_node("emit_screenshot_ui", emit_screenshot_ui)
+
 # Define entry point: START -> preprocess_images -> chatbot
 graph_builder.add_edge(START, "preprocess_images")
 graph_builder.add_edge("preprocess_images", "chatbot")
@@ -402,8 +408,9 @@ graph_builder.add_conditional_edges(
     }
 )
 
-# Tools return to chatbot for next turn
-graph_builder.add_edge("tools", "chatbot")
+# Tools -> emit_screenshot_ui -> chatbot for next turn
+graph_builder.add_edge("tools", "emit_screenshot_ui")
+graph_builder.add_edge("emit_screenshot_ui", "chatbot")
 
 # Compile the graph
 # Note: When running via `langgraph dev`, checkpointing/persistence is handled

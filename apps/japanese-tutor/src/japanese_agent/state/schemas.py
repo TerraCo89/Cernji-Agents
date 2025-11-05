@@ -5,9 +5,10 @@ This module defines the state structure using TypedDict and custom reducers.
 The state persists across conversation turns via checkpointing.
 """
 
-from typing import TypedDict, Annotated, Optional, List, Dict, Any, Literal
+from typing import TypedDict, Annotated, Optional, List, Dict, Any, Literal, Sequence
 from langchain_core.messages import BaseMessage
 from langgraph.graph.message import add_messages
+from langgraph.graph.ui import AnyUIMessage, ui_message_reducer
 
 
 # ============================================================================
@@ -232,6 +233,9 @@ class JapaneseAgentState(TypedDict):
     # Conversation history (LangGraph requirement for chat agents)
     messages: Annotated[List[BaseMessage], add_messages]
 
+    # UI components (for generative UI)
+    ui: Annotated[Sequence[AnyUIMessage], ui_message_reducer]
+
     # ========== LEARNING DATA ==========
 
     # Current screenshot being analyzed
@@ -329,6 +333,7 @@ def create_initial_state(user_id: str = "default") -> JapaneseAgentState:
     """
     return {
         "messages": [],
+        "ui": [],
         "current_screenshot": None,
         "vocabulary": [],
         "flashcards": [],
