@@ -13,8 +13,9 @@ authors = [
 ]
 
 dependencies = [
-    # LangGraph and LangChain
-    "langgraph>=0.2.52",
+    # LangGraph and LangChain (Updated for v1.0+ - includes all v0.5.x improvements)
+    # Refs: DEV-50 - LangGraph Server update verification
+    "langgraph>=1.0.1",
     "langchain>=0.3.14",
     "langchain-core>=0.3.27",
     "langchain-anthropic>=0.3.6",
@@ -54,8 +55,9 @@ dev = [
 ]
 
 # LangGraph CLI (for local development)
+# Updated for v1.0+ compatibility (DEV-50)
 langgraph = [
-    "langgraph-cli[inmem]>=0.1.58",
+    "langgraph-cli[inmem]>=0.4.0",
 ]
 
 [build-system]

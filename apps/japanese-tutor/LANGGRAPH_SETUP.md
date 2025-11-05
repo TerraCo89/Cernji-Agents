@@ -11,6 +11,42 @@ The Japanese Learning Agent is built with LangGraph to provide:
 - **Flashcard Reviews**: SM-2 spaced repetition for optimal learning
 - **State Persistence**: Automatic checkpointing across conversation sessions
 
+## Version Information
+
+**Current Versions** (Updated: 2025-11-04, Refs: DEV-50):
+- **langgraph** (library): 1.0.2+
+- **langgraph-api** (server): **0.5.3** ✅ **Upgraded from 0.4.46**
+- **langgraph-cli**: 0.4.7
+- **langgraph-checkpoint**: 3.0.1
+- **langgraph-runtime-inmem**: **0.16.0** ✅ **Upgraded from 0.14.1**
+
+### LangGraph Server v0.5.x Improvements Included
+
+All improvements from v0.5.x server releases are now active:
+- ✅ **JSON Serialization Security** (v0.5.0) - Removed JSON fallback for enhanced security
+- ✅ **LangChain.js Compatibility** (v0.5.1) - Fixed persistence issues with createAgent
+- ✅ **PostgreSQL Connection Retry** (v0.5.2) - Added retry logic during startup
+- ✅ **Checkpoint System 3.0** - Enhanced persistence and performance
+- ✅ **Performance Optimizations** - Improved checkpoint writes and database operations
+- ✅ **Enhanced Error Logging** - Better troubleshooting support
+
+### Upgrade Instructions
+
+To upgrade to the latest LangGraph Server (if you see the "Critical support" warning):
+
+```bash
+# Upgrade langgraph-api to latest 0.5.x
+pip install --upgrade "langgraph-api>=0.5.0"
+
+# This will also upgrade related packages:
+# - langgraph-runtime-inmem to 0.16.0+
+# - grpcio-tools to compatible version
+```
+
+**Note**: The `langgraph-api` package is installed globally and used by `langgraph dev` command, not managed by this project's `pyproject.toml`.
+
+See [LangGraph Server Changelog](https://docs.langchain.com/langgraph-platform/langgraph-server-changelog) for details.
+
 ## Quick Start
 
 ### 1. Install Dependencies
