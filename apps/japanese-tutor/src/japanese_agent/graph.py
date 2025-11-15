@@ -5,46 +5,41 @@ Implements OCR, vocabulary tracking, and flashcard review workflows.
 """
 from __future__ import annotations
 
-import os
-import base64
-import tempfile
 import atexit
-from typing import Dict, Any, List, Union, Optional
-from pathlib import Path
+import base64
+import os
+import tempfile
 from datetime import datetime, timezone
-from urllib.parse import urlparse
-
-from langchain.chat_models import init_chat_model
-from langgraph.graph import END, START, StateGraph
-from langgraph.prebuilt import ToolNode
-from langchain_core.messages import AIMessage, HumanMessage, BaseMessage
+from typing import Any, Dict, List
 
 from dotenv import load_dotenv
+from langchain.chat_models import init_chat_model
+from langchain_core.messages import AIMessage, HumanMessage
+from langgraph.graph import END, START, StateGraph
+from langgraph.prebuilt import ToolNode
+
+# Import nodes
+from japanese_agent.nodes import emit_screenshot_ui, save_screenshot_to_db
 
 # Import state schema
 from japanese_agent.state.schemas import JapaneseAgentState
-
-# Import nodes
-from japanese_agent.nodes import emit_screenshot_ui
 
 # Import tools
 from japanese_agent.tools import (
     # Screenshot analysis
     analyze_screenshot_claude,
     analyze_screenshot_manga_ocr,
-    hybrid_screenshot_analysis,
-
-    # Vocabulary management
-    search_vocabulary,
-    list_vocabulary_by_status,
-    update_vocabulary_status,
-    get_vocabulary_statistics,
-
+    create_flashcard,
     # Flashcard management
     get_due_flashcards,
-    record_flashcard_review,
-    create_flashcard,
     get_review_statistics,
+    get_vocabulary_statistics,
+    hybrid_screenshot_analysis,
+    list_vocabulary_by_status,
+    record_flashcard_review,
+    # Vocabulary management
+    search_vocabulary,
+    update_vocabulary_status,
 )
 
 # Load environment variables
@@ -269,13 +264,17 @@ def preprocess_images(state: JapaneseAgentState) -> Dict[str, Any]:
                     # Extract base64 data from data URL
                     base64_data, mime_type = extract_base64_from_data_url(url)
 
-                    # Save to temp file
+                    # Save to temp file for OCR tools
                     temp_file_path = save_image_to_temp_file(base64_data, mime_type)
 
-                    # Update state with file path AND add AI message with path
+                    print(f"✅ Image saved to temp file: {temp_file_path}")
+
+                    # Update state with file path AND base64 data for reliable retrieval
                     return {
                         "current_screenshot": {
                             "file_path": temp_file_path,
+                            "base64_data": base64_data,  # Store for UI display
+                            "mime_type": mime_type,
                             "processed_at": datetime.now(timezone.utc).isoformat(),
                             "ocr_method": "pending",
                         },
@@ -295,17 +294,22 @@ def preprocess_images(state: JapaneseAgentState) -> Dict[str, Any]:
         # Handle "image" format (direct base64)
         elif block.get("type") == "image":
             try:
-                base64_data = block.get("base64", "")
+                # Frontend sends 'data' field, not 'base64'
+                base64_data = block.get("data", "")
                 mime_type = block.get("mime_type", "image/png")
 
                 if base64_data:
-                    # Save to temp file
+                    # Save to temp file for OCR tools
                     temp_file_path = save_image_to_temp_file(base64_data, mime_type)
 
-                    # Update state with file path AND add AI message with path
+                    print(f"✅ Image saved to temp file: {temp_file_path}")
+
+                    # Update state with file path AND base64 data for reliable retrieval
                     return {
                         "current_screenshot": {
                             "file_path": temp_file_path,
+                            "base64_data": base64_data,  # Store for UI display
+                            "mime_type": mime_type,
                             "processed_at": datetime.now(timezone.utc).isoformat(),
                             "ocr_method": "pending",
                         },
@@ -315,10 +319,14 @@ def preprocess_images(state: JapaneseAgentState) -> Dict[str, Any]:
                             )
                         ]
                     }
+                else:
+                    print(f"⚠️ Warning: 'data' field is empty in image block")
 
             except Exception as e:
                 # Log error but don't fail the whole graph
-                print(f"Error processing image block: {e}")
+                print(f"❌ Error processing image block: {e}")
+                import traceback
+                traceback.print_exc()
                 continue
 
     # No images found, return empty dict (no state update)
@@ -391,6 +399,9 @@ graph_builder.add_node("chatbot", chatbot)
 tool_node = ToolNode(tools=tools)
 graph_builder.add_node("tools", tool_node)
 
+# Add database save node for screenshots
+graph_builder.add_node("save_screenshot_to_db", save_screenshot_to_db)
+
 # Add screenshot UI emission node
 graph_builder.add_node("emit_screenshot_ui", emit_screenshot_ui)
 
@@ -408,8 +419,9 @@ graph_builder.add_conditional_edges(
     }
 )
 
-# Tools -> emit_screenshot_ui -> chatbot for next turn
-graph_builder.add_edge("tools", "emit_screenshot_ui")
+# Tools -> save_screenshot_to_db -> emit_screenshot_ui -> chatbot for next turn
+graph_builder.add_edge("tools", "save_screenshot_to_db")
+graph_builder.add_edge("save_screenshot_to_db", "emit_screenshot_ui")
 graph_builder.add_edge("emit_screenshot_ui", "chatbot")
 
 # Compile the graph

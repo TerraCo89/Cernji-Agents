@@ -6,7 +6,7 @@ import json
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Dict, Any
+from typing import Any, Dict
 
 from langchain_core.messages import AIMessage
 from langgraph.graph.ui import push_ui_message
@@ -68,7 +68,15 @@ def emit_screenshot_ui(state: JapaneseAgentState) -> Dict[str, Any]:
                     # Try to get image from current_screenshot in state
                     if "current_screenshot" in state and state["current_screenshot"]:
                         screenshot_info = state["current_screenshot"]
-                        if "file_path" in screenshot_info:
+
+                        # First, try to use base64_data from state (most reliable)
+                        if "base64_data" in screenshot_info and screenshot_info["base64_data"]:
+                            image_data = screenshot_info["base64_data"]
+                            media_type = screenshot_info.get("mime_type", "image/png")
+                            print(f"✅ Using base64 image data from state")
+
+                        # Fallback: try to read from file_path if base64_data not available
+                        elif "file_path" in screenshot_info:
                             try:
                                 # Read and encode the image file
                                 with open(screenshot_info["file_path"], "rb") as f:
@@ -84,8 +92,9 @@ def emit_screenshot_ui(state: JapaneseAgentState) -> Dict[str, Any]:
                                         ".webp": "image/webp",
                                     }
                                     media_type = media_type_map.get(file_ext, "image/png")
+                                    print(f"✅ Read image from file: {screenshot_info['file_path']}")
                             except Exception as e:
-                                print(f"Warning: Could not read screenshot file: {e}")
+                                print(f"⚠️ Warning: Could not read screenshot file: {e}")
 
                     # Format extracted text for UI
                     extracted_text_formatted = []

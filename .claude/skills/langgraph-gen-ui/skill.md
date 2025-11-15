@@ -54,6 +54,20 @@ Present the user with implementation options to understand their needs:
 
 Proceed to the appropriate step based on the user's response.
 
+**📁 Note on Folder Structure:**
+
+Before implementation, consider loading the folder structure guide:
+```
+Read: references/08-folder-structure-and-organization.md
+```
+
+This guide covers:
+- Recommended directory organization for scalability
+- Component registry pattern for type-safe loading
+- Feature module patterns for complex components
+- Naming conventions and best practices
+- Real working examples from this codebase
+
 ---
 
 ### Step 2A: Start from Scratch (New Agent)
@@ -151,19 +165,49 @@ For new implementations requiring both backend and frontend creation:
    }
    ```
 
-3. **Export component map:**
+3. **Create component registry** (recommended pattern):
+
+   Create a centralized registry for type-safe, performant loading:
 
    ```tsx
+   // components/custom/index.ts
    import Component from './Component';
+   import WeatherCard from './WeatherCard';
 
-   export default {
+   export const customComponents = {
      component_name: Component,
+     weather_card: WeatherCard,
    };
+
+   export type CustomComponentName = keyof typeof customComponents;
    ```
+
+   **Benefits:**
+   - ✅ Type-safe component lookup
+   - ✅ Faster rendering (no dynamic imports)
+   - ✅ Easy to maintain
+   - ✅ Single source of truth
 
 4. **Integrate with application:**
 
-   Add `LoadExternalComponent` to message rendering and configure `useStream` with `onCustomEvent` handler.
+   Update message rendering to check local registry first:
+
+   ```tsx
+   import { customComponents } from '@/components/custom';
+   import { LoadExternalComponent } from '@langchain/langgraph-sdk/react-ui';
+
+   // In AI message component
+   const LocalComponent = customComponents[uiMessage.name];
+
+   if (LocalComponent) {
+     return <LocalComponent {...uiMessage.props} />;
+   }
+
+   // Fallback to external loading
+   return <LoadExternalComponent stream={thread} message={uiMessage} />;
+   ```
+
+   Configure `useStream` with `onCustomEvent` handler for UI message accumulation.
 
 ---
 
@@ -624,7 +668,20 @@ Comprehensive documentation for LangGraph Generative UI implementation:
 
 - **[🔧 07-troubleshooting.md](./references/07-troubleshooting.md)**: Solutions for 10+ common issues, debugging checklist, error reference table, and performance optimization. Load when encountering problems.
 
+- **[📁 08-folder-structure-and-organization.md](./references/08-folder-structure-and-organization.md)**: Production-tested folder structure patterns, component registry system, feature modules, naming conventions, and scalability patterns. Includes real working examples from japanese-tutor + agent-chat-ui. Load when organizing components or starting a new project.
+
 - **[📚 README.md](./references/README.md)**: Quick start guide, feature overview, documentation structure, and best practices summary. Load for high-level understanding.
+
+### Real Working Examples in Codebase
+
+This monorepo contains production implementations of LangGraph Gen-UI:
+
+- **Backend**: `apps/japanese-tutor/src/japanese_agent/` - Python backend with UI emission nodes
+- **Frontend**: `apps/agent-chat-ui/src/` - Next.js frontend with component registry pattern
+- **Component Registry**: `apps/agent-chat-ui/src/components/custom/index.ts`
+- **UI Emission Node**: `apps/japanese-tutor/src/japanese_agent/nodes/screenshot_ui.py`
+
+Refer to these for production-ready patterns and implementation details.
 
 ---
 
