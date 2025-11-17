@@ -117,6 +117,167 @@ def chat_node(state):
 
 ---
 
+## 🚀 Pre-Flight Checklist
+
+**Before starting the LangGraph server, complete these checks to avoid common errors:**
+
+### 1. Package Installation ✅
+
+**Problem:** `ImportError: attempted relative import with no known parent package`
+
+**Solution:** Install project as editable package
+
+```bash
+cd apps/resume-agent-langgraph
+python -m pip install -e .
+```
+
+**Why?** LangGraph server loads graphs as modules. Relative imports (like `from ..state import X`) only work when the package is installed.
+
+**Verify:**
+```bash
+python -c "from src.resume_agent.graphs.job_analysis import graph; print('SUCCESS')"
+```
+
+### 2. Graph Export Validation ✅
+
+**Problem:** `ImportError: cannot import name 'graph'`
+
+**Solution:** Each graph file must export a compiled `graph` variable
+
+```python
+# Bottom of your graph file (REQUIRED)
+def build_my_graph():
+    graph = StateGraph(MyState)
+    # ... graph construction
+    return graph.compile(checkpointer=MemorySaver())
+
+# This line is REQUIRED for langgraph.json
+graph = build_my_graph()
+```
+
+**Verify each graph:**
+```bash
+python -c "from src.resume_agent.graphs.job_analysis import graph; print('✅ job_analysis')"
+python -c "from src.resume_agent.graphs.conversation import graph; print('✅ conversation')"
+```
+
+### 3. langgraph.json Configuration ✅
+
+**Problem:** Graph doesn't appear in LangGraph Studio
+
+**Solution:** Ensure graph is listed in `langgraph.json`
+
+```json
+{
+  "$schema": "https://langgra.ph/schema.json",
+  "dependencies": [".", "./src"],
+  "graphs": {
+    "agent_name": "./src/module/graphs/file.py:graph"
+  },
+  "env": ".env"
+}
+```
+
+**Path format:** `./relative/path/to/file.py:variable_name`
+
+### 4. Node Import Validation ✅
+
+**Problem:** `ImportError: cannot import name 'my_node_func'`
+
+**Solution:** Ensure all nodes are implemented and exported
+
+```python
+# In src/resume_agent/nodes/__init__.py
+from .job_analysis import check_cache_node, fetch_job_node, analyze_job_node
+
+__all__ = [
+    "check_cache_node",
+    "fetch_job_node",
+    "analyze_job_node",
+]
+```
+
+**Verify:**
+```bash
+python -c "from src.resume_agent.nodes import check_cache_node; print('✅')"
+```
+
+### 5. State Schema Import ✅
+
+**Problem:** `ImportError: cannot import name 'MyState'`
+
+**Solution:** Ensure state schemas are properly exported
+
+```python
+# In src/resume_agent/state/__init__.py
+from .schemas import JobAnalysisState, ResumeAgentState
+
+__all__ = [
+    "JobAnalysisState",
+    "ResumeAgentState",
+]
+```
+
+### 6. Server Startup Test ✅
+
+**After completing above steps:**
+
+```bash
+cd apps/resume-agent-langgraph
+langgraph dev
+```
+
+**Expected output:**
+```
+✅ Loaded graphs: job_analyzer, career_assistant
+🚀 Server running on http://localhost:2024
+```
+
+**Troubleshooting:**
+- If graph fails to load, check server logs for specific error
+- Common: Missing node imports, missing state imports, syntax errors
+- Use `python -m py_compile path/to/file.py` to check syntax
+
+### 7. Progressive Disclosure Checklist ✅
+
+**When building self-contained agents (recommended):**
+
+- [ ] Each graph file is 100-200 lines
+- [ ] Graph includes embedded state schema
+- [ ] Graph includes embedded tools (or imports from shared module)
+- [ ] Graph includes embedded nodes
+- [ ] Graph exports compiled `graph` variable
+- [ ] File has standalone testing block (`if __name__ == "__main__"`)
+- [ ] Added to `langgraph.json` with descriptive name
+
+**Template:** See `src/resume_agent/graphs/EXAMPLE_SELF_CONTAINED_AGENT.py`
+
+### Quick Diagnostic Commands
+
+**Run these before starting server:**
+
+```bash
+# 1. Check package installation
+python -c "import resume_agent; print('✅ Package installed')"
+
+# 2. Test graph imports
+python -c "from src.resume_agent.graphs.job_analysis import graph; print('✅')"
+
+# 3. Test node imports
+python -c "from src.resume_agent.nodes import check_cache_node; print('✅')"
+
+# 4. Test state imports
+python -c "from src.resume_agent.state import JobAnalysisState; print('✅')"
+
+# 5. Validate langgraph.json syntax
+python -c "import json; json.load(open('langgraph.json')); print('✅ Valid JSON')"
+```
+
+**If all 5 pass → Server should start successfully**
+
+---
+
 ## Core Concepts
 
 ### StateGraph

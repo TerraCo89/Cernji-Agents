@@ -1,10 +1,10 @@
 """Job analysis workflow graph."""
 
 from langgraph.graph import StateGraph, START, END
-from langgraph.checkpoint.memory import MemorySaver
 
-from ..state import JobAnalysisState
-from ..nodes import check_cache_node, fetch_job_node, analyze_job_node
+# Use absolute imports (required for LangGraph server)
+from resume_agent.state import JobAnalysisState
+from resume_agent.nodes import check_cache_node, fetch_job_node, analyze_job_node
 
 
 def should_fetch(state: JobAnalysisState) -> str:
@@ -72,8 +72,15 @@ def build_job_analysis_graph() -> StateGraph:
     graph.add_edge("fetch_job", "analyze_job")
     graph.add_edge("analyze_job", END)
 
-    # Compile with memory checkpointer
-    checkpointer = MemorySaver()
-    app = graph.compile(checkpointer=checkpointer)
+    # Compile (LangGraph server provides automatic persistence)
+    app = graph.compile()
 
     return app
+
+
+# ==============================================================================
+# Export (Required for LangGraph Server)
+# ==============================================================================
+
+# Export compiled graph for langgraph.json to discover this agent
+graph = build_job_analysis_graph()

@@ -1,10 +1,10 @@
 """Conversational agent graph."""
 
 from langgraph.graph import StateGraph, START, END
-from langgraph.checkpoint.memory import MemorySaver
 
-from ..state import ResumeAgentState
-from ..nodes import chat_node, get_user_input_node
+# Use absolute imports (required for LangGraph server)
+from resume_agent.state import ResumeAgentState
+from resume_agent.nodes import chat_node, get_user_input_node
 
 
 def should_continue(state: ResumeAgentState) -> str:
@@ -57,8 +57,15 @@ def build_conversation_graph() -> StateGraph:
     # Loop: chat back to get_input
     graph.add_edge("chat", "get_input")
 
-    # Compile with memory checkpointer
-    checkpointer = MemorySaver()
-    app = graph.compile(checkpointer=checkpointer)
+    # Compile (LangGraph server provides automatic persistence)
+    app = graph.compile()
 
     return app
+
+
+# ==============================================================================
+# Export (Required for LangGraph Server)
+# ==============================================================================
+
+# Export compiled graph for langgraph.json to discover this agent
+graph = build_conversation_graph()

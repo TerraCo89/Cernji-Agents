@@ -233,6 +233,70 @@ const server = Bun.serve({
       }
     }
 
+    // POST /alerts/trigger - Receive webhooks from Kibana alerting
+    if (url.pathname === '/alerts/trigger' && req.method === 'POST') {
+      try {
+        const alert = await req.json();
+
+        console.log('[Kibana Alert] Received alert:', alert.alert_name || 'unnamed');
+
+        // Store alert as an event
+        const event: HookEvent = {
+          source_app: 'kibana',
+          session_id: alert.correlation_id || alert.alert_id || `alert-${Date.now()}`,
+          hook_event_type: 'KibanaAlert',
+          payload: {
+            alert_id: alert.alert_id,
+            alert_name: alert.alert_name,
+            service: alert.service,
+            error_count: alert.error_count,
+            severity: alert.severity || 'unknown',
+            timestamp: alert.timestamp,
+            query_context: alert.query_context,
+            ...alert
+          }
+        };
+
+        const savedEvent = insertEvent(event);
+
+        // Broadcast to WebSocket clients
+        const message = JSON.stringify({
+          type: 'alert',
+          data: savedEvent
+        });
+        wsClients.forEach(client => {
+          try {
+            client.send(message);
+          } catch (err) {
+            wsClients.delete(client);
+          }
+        });
+
+        // TODO: Trigger agent workflow based on alert type
+        // This is where you'd integrate with your agent orchestration system
+        // For now, just log the alert
+        console.log(`[Kibana Alert] Alert stored with ID: ${savedEvent.id}`);
+
+        return new Response(JSON.stringify({
+          success: true,
+          event_id: savedEvent.id,
+          message: 'Alert received and stored'
+        }), {
+          status: 200,
+          headers: { ...headers, 'Content-Type': 'application/json' }
+        });
+      } catch (error) {
+        console.error('[Kibana Alert] Error processing alert:', error);
+        return new Response(JSON.stringify({
+          success: false,
+          error: 'Failed to process alert'
+        }), {
+          status: 500,
+          headers: { ...headers, 'Content-Type': 'application/json' }
+        });
+      }
+    }
+
     // Theme API endpoints
     
     // POST /api/themes - Create a new theme

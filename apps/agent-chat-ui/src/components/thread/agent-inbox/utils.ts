@@ -3,6 +3,9 @@ import { format } from "date-fns";
 import { startCase } from "lodash";
 import { HumanResponseWithEdits, SubmitType } from "./types";
 import { HumanInterrupt } from "@langchain/langgraph/prebuilt";
+import { getLogger } from "@/lib/logger";
+
+const logger = getLogger('AgentInboxUtils');
 
 export function prettifyText(action: string) {
   return startCase(action.replace(/_/g, " "));
@@ -114,14 +117,11 @@ export function createDefaultHumanResponse(
           k in initialHumanInterruptEditValue.current &&
           initialHumanInterruptEditValue.current[k] !== stringValue
         ) {
-          console.error(
-            "KEY AND VALUE FOUND IN initialHumanInterruptEditValue.current THAT DOES NOT MATCH THE ACTION REQUEST",
-            {
-              key: k,
-              value: stringValue,
-              expectedValue: initialHumanInterruptEditValue.current[k],
-            },
-          );
+          logger.error({
+            key: k,
+            value: stringValue,
+            expectedValue: initialHumanInterruptEditValue.current[k],
+          }, 'Mismatch between initialHumanInterruptEditValue and action request');
         }
       });
       responses.push({

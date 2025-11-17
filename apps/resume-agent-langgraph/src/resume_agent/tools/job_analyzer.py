@@ -161,25 +161,69 @@ def parse_job_posting(job_content: str) -> dict[str, Any]:
 
 
 @tool
-def analyze_job_posting(job_url: str) -> str:
-    """Start job analysis workflow for a given URL.
+async def analyze_job_posting(job_url: str) -> str:
+    """Analyze a job posting by invoking the full job analysis workflow.
 
     This tool triggers the browser-based job scraping and analysis workflow.
     The workflow will:
     1. Check if the job has been analyzed before (cache)
     2. If not cached, scrape the job posting using browser automation
     3. Analyze the job posting with an LLM to extract structured data
-    4. Store the results in state
 
     Args:
         job_url: URL of the job posting to analyze
 
     Returns:
-        Message indicating that job analysis has started
+        Formatted job analysis results or error message
     """
-    # Tool returns a message - the actual workflow is triggered by
-    # the graph routing which detects job_url is set in state
-    return f"Starting job analysis for: {job_url}\n\nI'll use browser automation to fetch and analyze this job posting."
+    try:
+        # Import the job analysis workflow graph
+        from resume_agent.graphs.job_analysis import graph as job_analysis_graph
+
+        # Invoke the workflow with the job URL (use ainvoke for async nodes)
+        result = await job_analysis_graph.ainvoke(
+            {"job_url": job_url},
+            config={"configurable": {"thread_id": f"job-analysis-{job_url.split('/')[-1]}"}}
+        )
+
+        # Check for errors
+        if result.get("errors"):
+            return f"❌ Job analysis failed:\n" + "\n".join(result["errors"])
+
+        # Extract the analysis
+        job_analysis = result.get("job_analysis", {})
+
+        if not job_analysis:
+            return "❌ No job analysis data returned from workflow"
+
+        # Format the results
+        cached_note = " (from cache)" if result.get("cached") else ""
+
+        output = [
+            f"✅ Job Analysis Complete{cached_note}\n",
+            f"**Company**: {job_analysis.get('company', 'N/A')}",
+            f"**Position**: {job_analysis.get('job_title', 'N/A')}",
+            f"**Location**: {job_analysis.get('location', 'N/A')}\n",
+        ]
+
+        # Add required qualifications
+        required_quals = job_analysis.get("required_qualifications", [])
+        if required_quals:
+            output.append(f"**Required Qualifications** ({len(required_quals)}):")
+            for qual in required_quals[:5]:
+                output.append(f"  • {qual}")
+            if len(required_quals) > 5:
+                output.append(f"  ... and {len(required_quals) - 5} more")
+
+        # Add keywords
+        keywords = job_analysis.get("keywords", [])
+        if keywords:
+            output.append(f"\n**Key Technologies**: {', '.join(keywords[:10])}")
+
+        return "\n".join(output)
+
+    except Exception as e:
+        return f"❌ Error invoking job analysis workflow: {str(e)}"
 
 
 # Legacy implementation kept for reference

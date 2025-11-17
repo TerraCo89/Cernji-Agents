@@ -12,6 +12,7 @@ import tempfile
 from datetime import datetime, timezone
 from typing import Any, Dict, List
 
+from cernji_logging import get_logger
 from dotenv import load_dotenv
 from langchain.chat_models import init_chat_model
 from langchain_core.messages import AIMessage, HumanMessage
@@ -45,6 +46,11 @@ from japanese_agent.tools import (
 # Load environment variables
 load_dotenv()
 
+# Configure logging
+os.environ.setdefault('SERVICE_NAME', 'japanese-tutor')
+os.environ.setdefault('LOG_FILE', 'logs/app.json.log')
+logger = get_logger(__name__)
+
 
 # ==============================================================================
 # Temporary File Management
@@ -60,9 +66,10 @@ def cleanup_temp_files():
         try:
             if os.path.exists(file_path):
                 os.unlink(file_path)
+                logger.debug("Cleaned up temp file", file_path=file_path)
         except Exception as e:
             # Log but don't fail - temp files will be cleaned by OS eventually
-            print(f"Warning: Could not delete temp file {file_path}: {e}")
+            logger.warning("Could not delete temp file", file_path=file_path, error=str(e))
 
 
 # Register cleanup handler
@@ -267,7 +274,9 @@ def preprocess_images(state: JapaneseAgentState) -> Dict[str, Any]:
                     # Save to temp file for OCR tools
                     temp_file_path = save_image_to_temp_file(base64_data, mime_type)
 
-                    print(f"✅ Image saved to temp file: {temp_file_path}")
+                    logger.info("Image saved to temp file",
+                               file_path=temp_file_path,
+                               mime_type=mime_type)
 
                     # Update state with file path AND base64 data for reliable retrieval
                     return {
@@ -288,7 +297,7 @@ def preprocess_images(state: JapaneseAgentState) -> Dict[str, Any]:
 
             except Exception as e:
                 # Log error but don't fail the whole graph
-                print(f"Error processing image_url block: {e}")
+                logger.error("Error processing image_url block", error=str(e), exc_info=True)
                 continue
 
         # Handle "image" format (direct base64)
@@ -302,7 +311,9 @@ def preprocess_images(state: JapaneseAgentState) -> Dict[str, Any]:
                     # Save to temp file for OCR tools
                     temp_file_path = save_image_to_temp_file(base64_data, mime_type)
 
-                    print(f"✅ Image saved to temp file: {temp_file_path}")
+                    logger.info("Image saved to temp file",
+                               file_path=temp_file_path,
+                               mime_type=mime_type)
 
                     # Update state with file path AND base64 data for reliable retrieval
                     return {
@@ -320,13 +331,11 @@ def preprocess_images(state: JapaneseAgentState) -> Dict[str, Any]:
                         ]
                     }
                 else:
-                    print(f"⚠️ Warning: 'data' field is empty in image block")
+                    logger.warning("Empty 'data' field in image block")
 
             except Exception as e:
                 # Log error but don't fail the whole graph
-                print(f"❌ Error processing image block: {e}")
-                import traceback
-                traceback.print_exc()
+                logger.error("Error processing image block", error=str(e), exc_info=True)
                 continue
 
     # No images found, return empty dict (no state update)

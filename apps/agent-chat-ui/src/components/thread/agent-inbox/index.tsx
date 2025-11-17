@@ -3,6 +3,9 @@ import { ThreadActionsView } from "./components/thread-actions-view";
 import { useState } from "react";
 import { HumanInterrupt } from "@langchain/langgraph/prebuilt";
 import { useStreamContext } from "@/providers/Stream";
+import { getLogger } from "@/lib/logger";
+
+const logger = getLogger('ThreadView');
 
 interface ThreadViewProps {
   interrupt: HumanInterrupt | HumanInterrupt[];
@@ -20,7 +23,7 @@ export function ThreadView({ interrupt }: ThreadViewProps) {
     showDescription: boolean,
   ) => {
     if (showState && showDescription) {
-      console.error("Cannot show both state and description");
+      logger.error('Invalid side panel state: cannot show both state and description');
       return;
     }
     if (showState) {

@@ -2,8 +2,8 @@
   "$schema": "https://langgra.ph/schema.json",
   "dependencies": [".", "./src"],
   "graphs": {
-    "resume_agent_advanced": "./src/resume_agent/graph.py:graph",
-    "resume_agent_basic": "./resume_agent_langgraph.py:resume_agent_langgraph"
+    "career_assistant": "./src/resume_agent/graphs/career_assistant.py:graph",
+    "resume_agent_advanced": "./src/resume_agent/graph.py:graph"
   },
   "env": ".env",
   "image_distro": "wolfi"

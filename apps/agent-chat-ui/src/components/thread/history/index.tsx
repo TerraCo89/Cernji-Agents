@@ -14,6 +14,9 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { PanelRightOpen, PanelRightClose } from "lucide-react";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
+import { getLogger } from "@/lib/logger";
+
+const logger = getLogger('ThreadHistory');
 
 function ThreadList({
   threads,
@@ -89,8 +92,15 @@ export default function ThreadHistory() {
     if (typeof window === "undefined") return;
     setThreadsLoading(true);
     getThreads()
-      .then(setThreads)
-      .catch(console.error)
+      .then((threads) => {
+        logger.info({ threadCount: threads.length }, 'Threads loaded successfully');
+        setThreads(threads);
+      })
+      .catch((error) => {
+        logger.error({
+          error: error instanceof Error ? error.message : String(error)
+        }, 'Failed to load threads');
+      })
       .finally(() => setThreadsLoading(false));
   }, []);
 

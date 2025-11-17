@@ -16,6 +16,10 @@ from PIL import Image
 import cv2
 import numpy as np
 from manga_ocr import MangaOcr
+from cernji_logging import get_logger
+
+# Configure logging
+logger = get_logger(__name__)
 
 
 # ==============================================================================
@@ -42,7 +46,9 @@ def get_manga_ocr_model() -> MangaOcr:
     global _manga_ocr_model
 
     if _manga_ocr_model is None:
+        logger.info("Initializing manga-ocr model (first time - may download ~1GB)")
         _manga_ocr_model = MangaOcr()
+        logger.info("manga-ocr model initialized successfully")
 
     return _manga_ocr_model
 
@@ -284,10 +290,12 @@ def analyze_screenshot_claude(image_path: str) -> Dict[str, Any]:
             - vocabulary: List of key words with meanings and JLPT levels
             - ocr_method: Always "claude" for this function
     """
+    logger.info("Starting Claude Vision analysis", image_path=image_path)
     try:
         # Validate environment
         api_key = os.getenv("ANTHROPIC_API_KEY")
         if not api_key:
+            logger.error("ANTHROPIC_API_KEY not set", image_path=image_path)
             return {
                 "error": "ANTHROPIC_API_KEY environment variable not set",
                 "file_path": image_path,
@@ -302,6 +310,7 @@ def analyze_screenshot_claude(image_path: str) -> Dict[str, Any]:
         try:
             image_base64, media_type = encode_image_to_base64(image_path)
         except FileNotFoundError as e:
+            logger.error("Image file not found", image_path=image_path, error=str(e))
             return {
                 "error": str(e),
                 "file_path": image_path,
@@ -312,6 +321,7 @@ def analyze_screenshot_claude(image_path: str) -> Dict[str, Any]:
                 "ocr_method": "claude",
             }
         except ValueError as e:
+            logger.error("Invalid image format", image_path=image_path, error=str(e))
             return {
                 "error": str(e),
                 "file_path": image_path,
@@ -332,6 +342,7 @@ def analyze_screenshot_claude(image_path: str) -> Dict[str, Any]:
         vision_prompt = create_vision_prompt()
 
         # Call Claude Vision API
+        logger.info("Calling Claude Vision API", model=model, image_path=image_path)
         response = client.messages.create(
             model=model,
             max_tokens=4096,
@@ -365,10 +376,19 @@ def analyze_screenshot_claude(image_path: str) -> Dict[str, Any]:
         # Parse and structure response
         result = parse_claude_response(response_text, image_path)
 
+        logger.info("Claude Vision analysis completed",
+                   image_path=image_path,
+                   extracted_text_count=len(result.get("extracted_text", [])),
+                   vocabulary_count=len(result.get("vocabulary", [])))
+
         return result
 
     except Exception as e:
         # Catch-all error handling
+        logger.error("Unexpected error in Claude Vision analysis",
+                    image_path=image_path,
+                    error=str(e),
+                    exc_info=True)
         return {
             "error": f"Unexpected error during Claude Vision analysis: {str(e)}",
             "file_path": image_path,
@@ -398,8 +418,11 @@ def analyze_screenshot_manga_ocr(image_path: str) -> Dict[str, Any]:
             - confidence: OCR confidence scores
             - positions: Text bounding boxes
     """
+    logger.info("Starting manga-ocr analysis", image_path=image_path)
+
     # Validate image path
     if not os.path.exists(image_path):
+        logger.error("Image file not found for manga-ocr", image_path=image_path)
         return {
             "error": f"Image not found: {image_path}",
             "file_path": image_path,
@@ -444,7 +467,11 @@ def analyze_screenshot_manga_ocr(image_path: str) -> Dict[str, Any]:
         # Extract text using manga-ocr
         try:
             extracted_text_raw = mocr(preprocessed_img)
+            logger.debug("manga-ocr extraction successful",
+                        image_path=image_path,
+                        text_length=len(extracted_text_raw) if extracted_text_raw else 0)
         except Exception as e:
+            logger.error("OCR extraction failed", image_path=image_path, error=str(e))
             return {
                 "error": f"OCR extraction failed: {str(e)}",
                 "file_path": image_path,
@@ -468,15 +495,25 @@ def analyze_screenshot_manga_ocr(image_path: str) -> Dict[str, Any]:
             extracted_text_segments.append(segment)
 
         # Return structured result
-        return {
+        result = {
             "file_path": image_path,
             "processed_at": datetime.now(timezone.utc).isoformat(),
             "extracted_text": extracted_text_segments,
             "ocr_method": "manga-ocr",
         }
 
+        logger.info("manga-ocr analysis completed",
+                   image_path=image_path,
+                   segments_count=len(extracted_text_segments))
+
+        return result
+
     except Exception as e:
         # Catch-all error handling
+        logger.error("Unexpected error in manga-ocr analysis",
+                    image_path=image_path,
+                    error=str(e),
+                    exc_info=True)
         return {
             "error": f"Unexpected error during manga-ocr analysis: {str(e)}",
             "file_path": image_path,
@@ -505,8 +542,11 @@ def hybrid_screenshot_analysis(image_path: str) -> Dict[str, Any]:
             - context: Game scene description
             - ocr_confidence: Confidence scores per text segment
     """
+    logger.info("Starting hybrid OCR analysis", image_path=image_path)
+
     # Validate image path
     if not os.path.exists(image_path):
+        logger.error("Image file not found for hybrid analysis", image_path=image_path)
         return {
             "error": f"Image not found: {image_path}",
             "file_path": image_path,
@@ -579,6 +619,12 @@ def hybrid_screenshot_analysis(image_path: str) -> Dict[str, Any]:
         if notes:
             result["processing_notes"] = ", ".join(notes)
 
+        logger.info("Hybrid OCR analysis completed",
+                   image_path=image_path,
+                   extracted_text_count=len(extracted_text),
+                   vocabulary_count=len(vocabulary),
+                   processing_notes=result.get("processing_notes", ""))
+
         # Add partial error information if one method failed
         if manga_has_error or claude_has_error:
             errors = []
@@ -592,6 +638,10 @@ def hybrid_screenshot_analysis(image_path: str) -> Dict[str, Any]:
 
     except Exception as e:
         # Catch-all error handling
+        logger.error("Unexpected error in hybrid analysis",
+                    image_path=image_path,
+                    error=str(e),
+                    exc_info=True)
         return {
             "error": f"Unexpected error during hybrid analysis: {str(e)}",
             "file_path": image_path,
