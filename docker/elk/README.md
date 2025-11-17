@@ -24,6 +24,44 @@ curl http://localhost:9200/_cluster/health?pretty
 curl http://localhost:5601/api/status
 ```
 
+### Verify Encryption Keys
+
+Kibana requires encryption keys for alerting and security features. Verify they're loaded:
+
+**Linux/Mac**:
+```bash
+./docker/elk/scripts/verify-kibana-config.sh
+```
+
+**Windows (Git Bash)**:
+```bash
+bash ./docker/elk/scripts/verify-kibana-config.sh
+```
+
+**Windows (PowerShell - Manual Check)**:
+```powershell
+docker exec cernji-kibana bash -c 'env | grep XPACK_ENCRYPTEDSAVEDOBJECTS_ENCRYPTIONKEY'
+```
+
+**Expected output**: Three XPACK_*_ENCRYPTIONKEY variables with values
+
+**If keys are missing**:
+
+The encryption keys are defined in `docker-compose.yml` (lines 44-46) but not loaded in the running container. This happens when the container was created before the keys were added.
+
+**Fix**: Recreate the Kibana container:
+```bash
+cd docker/elk
+docker-compose down kibana
+docker-compose up -d kibana
+
+# Wait 30-60 seconds for Kibana to start
+docker logs -f cernji-kibana
+# Look for: "Server running at http://0.0.0.0:5601"
+```
+
+Then verify again with the verification script.
+
 ### Access UIs
 
 - **Kibana**: http://localhost:5601
