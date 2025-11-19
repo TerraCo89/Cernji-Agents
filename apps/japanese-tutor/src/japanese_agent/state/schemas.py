@@ -5,10 +5,11 @@ This module defines the state structure using TypedDict and custom reducers.
 The state persists across conversation turns via checkpointing.
 """
 
-from typing import TypedDict, Annotated, Optional, List, Dict, Any, Literal
+from typing import Annotated, Any, Dict, List, Literal, Optional, Sequence, TypedDict
+
 from langchain_core.messages import BaseMessage
 from langgraph.graph.message import add_messages
-
+from langgraph.graph.ui import AnyUIMessage, ui_message_reducer
 
 # ============================================================================
 # STATE REDUCERS
@@ -154,6 +155,8 @@ class ScreenshotDict(TypedDict, total=False):
     id: Optional[int]
     screenshot_id: Optional[int]
     file_path: str
+    base64_data: Optional[str]  # Base64-encoded image data for reliable retrieval
+    mime_type: Optional[str]  # MIME type of the image (e.g., "image/png")
     processed_at: str  # ISO timestamp
     extracted_text: List[ExtractedTextDict]
     translation: Optional[str]
@@ -231,6 +234,9 @@ class JapaneseAgentState(TypedDict):
 
     # Conversation history (LangGraph requirement for chat agents)
     messages: Annotated[List[BaseMessage], add_messages]
+
+    # UI components (for generative UI)
+    ui: Annotated[Sequence[AnyUIMessage], ui_message_reducer]
 
     # ========== LEARNING DATA ==========
 
@@ -329,6 +335,7 @@ def create_initial_state(user_id: str = "default") -> JapaneseAgentState:
     """
     return {
         "messages": [],
+        "ui": [],
         "current_screenshot": None,
         "vocabulary": [],
         "flashcards": [],
@@ -368,7 +375,7 @@ def update_state(
             messages=[AIMessage(content="Analysis complete!")]
         )
     """
-    return {k: v for k, v in updates.items()}
+    return dict(updates.items())
 
 
 # ============================================================================

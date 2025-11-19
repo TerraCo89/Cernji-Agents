@@ -14,6 +14,7 @@ import { ThreadView } from "../agent-inbox";
 import { useQueryState, parseAsBoolean } from "nuqs";
 import { GenericInterruptView } from "./generic-interrupt";
 import { useArtifact } from "../artifact";
+import { customComponents } from "@/components/custom";
 
 function CustomComponent({
   message,
@@ -24,21 +25,37 @@ function CustomComponent({
 }) {
   const artifact = useArtifact();
   const { values } = useStreamContext();
-  const customComponents = values.ui?.filter(
+  const uiMessages = values.ui?.filter(
     (ui) => ui.metadata?.message_id === message.id,
   );
 
-  if (!customComponents?.length) return null;
+  if (!uiMessages?.length) return null;
   return (
     <Fragment key={message.id}>
-      {customComponents.map((customComponent) => (
-        <LoadExternalComponent
-          key={customComponent.id}
-          stream={thread}
-          message={customComponent}
-          meta={{ ui: customComponent, artifact }}
-        />
-      ))}
+      {uiMessages.map((uiMessage) => {
+        // Check if component exists in local registry
+        const LocalComponent = customComponents[uiMessage.name as keyof typeof customComponents];
+
+        if (LocalComponent) {
+          // Render local component
+          return (
+            <LocalComponent
+              key={uiMessage.id}
+              {...uiMessage.props}
+            />
+          );
+        }
+
+        // Fall back to external component loading
+        return (
+          <LoadExternalComponent
+            key={uiMessage.id}
+            stream={thread}
+            message={uiMessage}
+            meta={{ ui: uiMessage, artifact }}
+          />
+        );
+      })}
     </Fragment>
   );
 }

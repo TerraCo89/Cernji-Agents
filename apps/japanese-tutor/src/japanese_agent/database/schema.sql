@@ -82,7 +82,9 @@ CREATE TABLE IF NOT EXISTS sources (
 -- Stores OCR-processed screenshot data
 CREATE TABLE IF NOT EXISTS screenshots (
     id INTEGER PRIMARY KEY,
-    file_path TEXT NOT NULL,
+    file_path TEXT,  -- Optional: temp file path for OCR processing
+    base64_data TEXT,  -- Base64-encoded image data for reliable storage/retrieval
+    mime_type TEXT DEFAULT 'image/png',  -- MIME type (e.g., "image/png", "image/jpeg")
     source_id INTEGER,
     processed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     ocr_confidence REAL NOT NULL,

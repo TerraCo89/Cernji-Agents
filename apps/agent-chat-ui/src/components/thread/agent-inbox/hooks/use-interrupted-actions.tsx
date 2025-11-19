@@ -13,6 +13,9 @@ import { toast } from "sonner";
 import { HumanInterrupt, HumanResponse } from "@langchain/langgraph/prebuilt";
 import { END } from "@langchain/langgraph/web";
 import { useStreamContext } from "@/providers/Stream";
+import { getLogger } from "@/lib/logger";
+
+const logger = getLogger('InterruptedActions');
 
 interface UseInterruptedActionsInput {
   interrupt: HumanInterrupt;
@@ -76,7 +79,10 @@ export default function useInterruptedActions({
       setHumanResponse(responses);
       setAcceptAllowed(hasAccept);
     } catch (e) {
-      console.error("Error formatting and setting human response state", e);
+      logger.error({
+        error: e instanceof Error ? e.message : String(e),
+        interruptId: interrupt.id
+      }, 'Failed to format and set human response state');
     }
   }, [interrupt]);
 
@@ -90,9 +96,13 @@ export default function useInterruptedActions({
           },
         },
       );
+      logger.info({ responseCount: response.length }, 'Human response submitted successfully');
       return true;
     } catch (e: any) {
-      console.error("Error sending human response", e);
+      logger.error({
+        error: e instanceof Error ? e.message : String(e),
+        responseCount: response.length
+      }, 'Failed to send human response');
       return false;
     }
   };
@@ -178,7 +188,10 @@ export default function useInterruptedActions({
           setStreamFinished(true);
         }
       } catch (e: any) {
-        console.error("Error sending human response", e);
+        logger.error({
+          error: e instanceof Error ? e.message : String(e),
+          submitType: selectedSubmitType
+        }, 'Failed to submit human response');
 
         if ("message" in e && e.message.includes("Invalid assistant ID")) {
           toast("Error: Invalid assistant ID", {
@@ -267,7 +280,10 @@ export default function useInterruptedActions({
         duration: 3000,
       });
     } catch (e) {
-      console.error("Error marking thread as resolved", e);
+      logger.error({
+        error: e instanceof Error ? e.message : String(e),
+        threadId: thread.threadId
+      }, 'Failed to mark thread as resolved');
       toast.error("Error", {
         description: "Failed to mark thread as resolved.",
         richColors: true,

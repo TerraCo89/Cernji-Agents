@@ -24,6 +24,9 @@ import { PasswordInput } from "@/components/ui/password-input";
 import { getApiKey } from "@/lib/api-key";
 import { useThreads } from "./Thread";
 import { toast } from "sonner";
+import { getLogger } from "@/lib/logger";
+
+const logger = getLogger('StreamProvider');
 
 export type StateType = { messages: Message[]; ui?: UIMessage[] };
 
@@ -59,9 +62,10 @@ async function checkGraphStatus(
       }),
     });
 
+    logger.info({ apiUrl, status: res.status, ok: res.ok }, 'Graph status check completed');
     return res.ok;
   } catch (e) {
-    console.error(e);
+    logger.error({ apiUrl, error: e instanceof Error ? e.message : String(e) }, 'Failed to check graph status');
     return false;
   }
 }
@@ -94,10 +98,20 @@ const StreamSession = ({
       }
     },
     onThreadId: (id) => {
+      logger.info({ threadId: id }, 'Thread ID changed');
       setThreadId(id);
       // Refetch threads list when thread ID changes.
       // Wait for some seconds before fetching so we're able to get the new thread that was created.
-      sleep().then(() => getThreads().then(setThreads).catch(console.error));
+      sleep().then(() =>
+        getThreads()
+          .then(setThreads)
+          .catch((error) => {
+            logger.error({
+              threadId: id,
+              error: error instanceof Error ? error.message : String(error)
+            }, 'Failed to fetch threads');
+          })
+      );
     },
   });
 

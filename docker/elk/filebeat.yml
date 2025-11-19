@@ -1,0 +1,207 @@
+# Filebeat Configuration for Cernji Agents
+# Collects JSON logs from all services and ships to Elasticsearch
+
+filebeat.inputs:
+  # Python apps with structlog (JSON logs)
+  - type: filestream
+    enabled: true
+    id: resume-agent
+    paths:
+      - /var/log/resume-agent/*.log
+      - /var/log/resume-agent/*.json.log
+    prospector:
+      scanner:
+        check_interval: 10s
+        symlinks: true
+    parsers:
+      - ndjson:
+          keys_under_root: true
+          add_error_key: true
+          overwrite_keys: true
+    fields:
+      service.name: resume-agent
+      service.type: python
+    fields_under_root: true
+    tags: ["python", "mcp", "resume"]
+
+  - type: filestream
+    enabled: true
+    id: japanese-tutor
+    paths:
+      - /var/log/japanese-tutor/*.log
+      - /var/log/japanese-tutor/*.json.log
+    parsers:
+      - ndjson:
+          keys_under_root: true
+          add_error_key: true
+          overwrite_keys: true
+    fields:
+      service.name: japanese-tutor
+      service.type: python
+    fields_under_root: true
+    tags: ["python", "langgraph", "japanese"]
+
+  - type: filestream
+    enabled: true
+    id: resume-agent-langgraph
+    paths:
+      - /var/log/resume-agent-langgraph/*.log
+      - /var/log/resume-agent-langgraph/*.json.log
+    parsers:
+      - ndjson:
+          keys_under_root: true
+          add_error_key: true
+          overwrite_keys: true
+    fields:
+      service.name: resume-agent-langgraph
+      service.type: python
+    fields_under_root: true
+    tags: ["python", "langgraph", "resume"]
+
+  - type: filestream
+    enabled: true
+    id: basic-langgraph-agent
+    paths:
+      - /var/log/basic-langgraph-agent/*.log
+      - /var/log/basic-langgraph-agent/*.json.log
+    parsers:
+      - ndjson:
+          keys_under_root: true
+          add_error_key: true
+          overwrite_keys: true
+    fields:
+      service.name: basic-langgraph-agent
+      service.type: python
+    fields_under_root: true
+    tags: ["python", "langgraph"]
+
+  # TypeScript apps with pino (JSON logs)
+  - type: filestream
+    enabled: true
+    id: observability-server
+    paths:
+      - /var/log/observability-server/*.log
+      - /var/log/observability-server/*.json.log
+    parsers:
+      - ndjson:
+          keys_under_root: true
+          add_error_key: true
+          overwrite_keys: true
+    fields:
+      service.name: observability-server
+      service.type: typescript
+    fields_under_root: true
+    tags: ["typescript", "bun", "observability"]
+
+  - type: filestream
+    enabled: true
+    id: agent-chat-ui
+    paths:
+      - /var/log/agent-chat-ui/*.log
+      - /var/log/agent-chat-ui/*.json.log
+    parsers:
+      - ndjson:
+          keys_under_root: true
+          add_error_key: true
+          overwrite_keys: true
+    fields:
+      service.name: agent-chat-ui
+      service.type: typescript
+    fields_under_root: true
+    tags: ["typescript", "nextjs", "ui"]
+
+  # DDWL Platform Apps
+  # Add your DDWL apps here - copy this template for each app:
+  # - type: filestream
+  #   enabled: true
+  #   id: your-app-name
+  #   paths:
+  #     - /var/log/ddwl/your-app-name/*.log
+  #     - /var/log/ddwl/your-app-name/*.json.log
+  #   prospector:
+  #     scanner:
+  #       check_interval: 10s
+  #       symlinks: true
+  #   parsers:
+  #     - ndjson:
+  #         keys_under_root: true
+  #         add_error_key: true
+  #         overwrite_keys: true
+  #   fields:
+  #     service.name: your-app-name
+  #     service.type: python  # or typescript
+  #     project: ddwl-platform
+  #   fields_under_root: true
+  #   tags: ["ddwl", "your-tags-here"]
+
+# Output to Elasticsearch
+output.elasticsearch:
+  hosts: ["http://elasticsearch:9200"]
+  index: "logs-%{[service.name]}-%{+yyyy.MM.dd}"
+  bulk_max_size: 2048
+  compression_level: 3
+
+# Kibana connection for dashboards
+setup.kibana:
+  host: "http://kibana:5601"
+
+# Index Lifecycle Management (30-day retention)
+setup.ilm:
+  enabled: true
+  rollover_alias: "logs"
+  pattern: "{now/d}-000001"
+  policy_name: "logs-30day-retention"
+
+# Index template settings
+setup.template:
+  name: "cernji-logs"
+  pattern: "logs-*"
+  settings:
+    index:
+      number_of_shards: 1
+      number_of_replicas: 0
+      codec: best_compression
+
+# Processors to enrich logs
+processors:
+  # Add host metadata
+  - add_host_metadata:
+      when.not.contains.tags: forwarded
+
+  # Add cloud metadata (if running in cloud)
+  - add_cloud_metadata: ~
+
+  # Add Docker metadata
+  - add_docker_metadata: ~
+
+  # Add Kubernetes metadata (if running in k8s)
+  - add_kubernetes_metadata: ~
+
+  # Add ECS version
+  - add_fields:
+      target: 'ecs'
+      fields:
+        version: '8.11.0'
+
+  # Timestamp parsing
+  - timestamp:
+      field: "@timestamp"
+      layouts:
+        - '2006-01-02T15:04:05.000Z'
+        - '2006-01-02T15:04:05.000Z07:00'
+      test:
+        - '2025-11-15T10:30:00.123Z'
+
+# Logging configuration for Filebeat itself
+logging.level: info
+logging.to_files: true
+logging.files:
+  path: /var/log/filebeat
+  name: filebeat
+  keepfiles: 7
+  permissions: 0644
+
+# Monitoring (send Filebeat metrics to Elasticsearch)
+monitoring.enabled: true
+monitoring.elasticsearch:
+  hosts: ["http://elasticsearch:9200"]

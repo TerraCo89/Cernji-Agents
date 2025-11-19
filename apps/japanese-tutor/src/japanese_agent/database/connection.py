@@ -10,6 +10,10 @@ import aiosqlite
 from pathlib import Path
 from typing import Optional
 from contextlib import asynccontextmanager
+from cernji_logging import get_logger
+
+# Configure logging
+logger = get_logger(__name__)
 
 
 # Global connection instance
@@ -68,6 +72,8 @@ async def get_connection() -> aiosqlite.Connection:
     if _connection is None:
         db_path = get_database_path()
 
+        logger.info("Creating database connection", db_path=db_path)
+
         # Create connection
         _connection = await aiosqlite.connect(db_path)
 
@@ -82,6 +88,8 @@ async def get_connection() -> aiosqlite.Connection:
         await _connection.execute("PRAGMA temp_store = MEMORY")
 
         await _connection.commit()
+
+        logger.info("Database connection established with WAL mode", db_path=db_path)
 
     return _connection
 
@@ -110,12 +118,16 @@ async def initialize_database(force: bool = False) -> None:
             result = await cursor.fetchone()
             if result:
                 # Database already initialized
+                logger.debug("Database already initialized, skipping schema creation")
                 return
+
+    logger.info("Initializing database schema", force=force)
 
     # Read schema.sql from same directory as this file
     schema_path = Path(__file__).parent / "schema.sql"
 
     if not schema_path.exists():
+        logger.error("Schema file not found", schema_path=str(schema_path))
         raise FileNotFoundError(f"Schema file not found: {schema_path}")
 
     # Read and execute schema
@@ -125,6 +137,8 @@ async def initialize_database(force: bool = False) -> None:
     # Execute schema (split by semicolon for multiple statements)
     await conn.executescript(schema_sql)
     await conn.commit()
+
+    logger.info("Database schema initialized successfully")
 
 
 async def close_connection() -> None:
@@ -137,8 +151,10 @@ async def close_connection() -> None:
     global _connection
 
     if _connection:
+        logger.info("Closing database connection")
         await _connection.close()
         _connection = None
+        logger.debug("Database connection closed")
 
 
 @asynccontextmanager
@@ -161,8 +177,10 @@ async def transaction():
     try:
         yield conn
         await conn.commit()
-    except Exception:
+        logger.debug("Transaction committed successfully")
+    except Exception as e:
         await conn.rollback()
+        logger.error("Transaction rolled back", error=str(e), exc_info=True)
         raise
 
 

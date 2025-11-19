@@ -1,0 +1,146 @@
+version: '3.8'
+
+services:
+  # Elasticsearch - Search & Analytics Engine
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:9.2.1
+    container_name: cernji-elasticsearch
+    environment:
+      - discovery.type=single-node
+      - "ES_JAVA_OPTS=-Xms2g -Xmx2g"
+      - xpack.security.enabled=false  # Disable for dev (ENABLE IN PROD!)
+      - xpack.monitoring.collection.enabled=true
+      - bootstrap.memory_lock=true
+      - indices.memory.index_buffer_size=30%
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    ports:
+      - "9200:9200"
+      - "9300:9300"
+    volumes:
+      - elasticsearch_data:/usr/share/elasticsearch/data
+    networks:
+      - elk
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:9200/_cluster/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    mem_limit: 4g
+    cpus: 2
+    restart: unless-stopped
+
+  # Kibana - Visualization & UI
+  kibana:
+    image: docker.elastic.co/kibana/kibana:9.2.1
+    container_name: cernji-kibana
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+      - SERVER_NAME=cernji-kibana
+      - SERVER_HOST=0.0.0.0
+      # Encryption keys for Alerting (required for Rules and Connectors)
+      - XPACK_ENCRYPTEDSAVEDOBJECTS_ENCRYPTIONKEY=a7e4f9c2b8d6e3a1f5c8b2d9e6a3f7c4
+      - XPACK_REPORTING_ENCRYPTIONKEY=b8f5a2c9d6e3f1a7c4b9d6e2f8a5c3d1
+      - XPACK_SECURITY_ENCRYPTIONKEY=c9a6d3e1f7b4c2a8d5e2f9b6c3a7d4e1
+    ports:
+      - "5601:5601"
+    networks:
+      - elk
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:5601/api/status || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    mem_limit: 2g
+    cpus: 1
+    restart: unless-stopped
+
+  # Filebeat - Log Shipper
+  filebeat:
+    image: docker.elastic.co/beats/filebeat:9.2.1
+    container_name: cernji-filebeat
+    user: root  # Required to read log files
+    volumes:
+      - ./filebeat.yml:/usr/share/filebeat/filebeat.yml:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      # Mount app log directories
+      - ../../apps/resume-agent/logs:/var/log/resume-agent:ro
+      - ../../apps/observability-server/logs:/var/log/observability-server:ro
+      - ../../apps/japanese-tutor/logs:/var/log/japanese-tutor:ro
+      - ../../apps/resume-agent-langgraph/logs:/var/log/resume-agent-langgraph:ro
+      - ../../apps/agent-chat-ui/logs:/var/log/agent-chat-ui:ro
+      - ../../apps/basic-langgraph-agent/logs:/var/log/basic-langgraph-agent:ro
+      # DDWL Platform Apps - Add your apps here
+      # Example: Mount DDWL apps from different directory
+      # - D:/source/DDWL-Platform/apps/your-app-name/logs:/var/log/ddwl/your-app-name:ro
+      - filebeat_data:/usr/share/filebeat/data
+    networks:
+      - elk
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    command: filebeat -e --strict.perms=false
+    mem_limit: 200m
+    cpus: 0.5
+    restart: unless-stopped
+
+  # Logstash - Log Processing & HTTP Input
+  logstash:
+    image: docker.elastic.co/logstash/logstash:9.2.1
+    container_name: cernji-logstash
+    environment:
+      - "LS_JAVA_OPTS=-Xms512m -Xmx512m"
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+      - INDEX_PREFIX=cernji  # Change this per deployment (cernji, ddwl, etc.)
+    volumes:
+      - ./logstash.conf:/usr/share/logstash/pipeline/logstash.conf:ro
+    ports:
+      - "5001:5001"  # HTTP input for application logs
+      - "5044:5044"  # Beats input (if needed)
+    networks:
+      - elk
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    mem_limit: 1g
+    cpus: 1
+    restart: unless-stopped
+
+  # APM Server - Application Performance Monitoring
+  apm-server:
+    image: docker.elastic.co/apm/apm-server:9.2.1
+    container_name: cernji-apm-server
+    environment:
+      - output.elasticsearch.hosts=["http://elasticsearch:9200"]
+      - apm-server.rum.enabled=true
+      - setup.kibana.host=kibana:5601
+      - apm-server.host=0.0.0.0:8200
+    ports:
+      - "8200:8200"
+    networks:
+      - elk
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    mem_limit: 1g
+    cpus: 1
+    restart: unless-stopped
+
+networks:
+  elk:
+    driver: bridge
+    name: cernji-elk-network
+
+volumes:
+  elasticsearch_data:
+    driver: local
+    name: cernji-elasticsearch-data
+  filebeat_data:
+    driver: local
+    name: cernji-filebeat-data

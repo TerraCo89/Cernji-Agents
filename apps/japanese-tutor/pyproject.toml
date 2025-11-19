@@ -20,28 +20,25 @@ dependencies = [
     "langchain-core>=0.3.27",
     "langchain-anthropic>=0.3.6",
     "langchain-openai>=0.3.0",
-
     # Anthropic and OpenAI SDKs
     "anthropic>=0.40.0",
     "openai>=1.58.1",
-
     # OCR and Japanese Processing
     "manga-ocr>=0.1.9",
     "jamdict>=0.1a11",
     "Pillow>=10.0.0",
     "opencv-python>=4.8.0",
-
     # File watching (for screenshot watcher)
     "watchdog>=3.0.0",
-
     # Configuration and validation
     "pydantic>=2.10.3",
     "pydantic-settings>=2.7.0",
     "python-dotenv>=1.0.0",
     "pyyaml>=6.0.0",
-
     # Database
     "aiosqlite>=0.19.0",
+    # Logging
+    "cernji-logging",
 ]
 
 [project.optional-dependencies]
@@ -105,3 +102,6 @@ python_version = "3.11"
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = true
+
+[tool.uv.sources]
+cernji-logging = { path = "../../libs/cernji-logging-py", editable = true }

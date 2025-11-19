@@ -46,6 +46,19 @@
         "EMBEDDING_MODEL": "sentence-transformers/all-MiniLM-L6-v2"
       }
     },
+    "error-analysis": {
+      "type": "stdio",
+      "command": "cmd",
+      "args": [
+          "/c",
+          "uv",
+          "run",
+          "apps\\error-analysis-mcp\\error_analysis_mcp.py"
+      ],
+      "env": {
+        "ELASTICSEARCH_URL": "http://localhost:9200"
+      }
+    },
     "linear": {
       "command": "cmd",
       "args": [
