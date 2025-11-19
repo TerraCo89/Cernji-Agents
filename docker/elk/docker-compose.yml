@@ -40,6 +40,10 @@ services:
       - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
       - SERVER_NAME=cernji-kibana
       - SERVER_HOST=0.0.0.0
+      # Encryption keys for Alerting (required for Rules and Connectors)
+      - XPACK_ENCRYPTEDSAVEDOBJECTS_ENCRYPTIONKEY=a7e4f9c2b8d6e3a1f5c8b2d9e6a3f7c4
+      - XPACK_REPORTING_ENCRYPTIONKEY=b8f5a2c9d6e3f1a7c4b9d6e2f8a5c3d1
+      - XPACK_SECURITY_ENCRYPTIONKEY=c9a6d3e1f7b4c2a8d5e2f9b6c3a7d4e1
     ports:
       - "5601:5601"
     networks:
@@ -84,6 +88,28 @@ services:
     command: filebeat -e --strict.perms=false
     mem_limit: 200m
     cpus: 0.5
+    restart: unless-stopped
+
+  # Logstash - Log Processing & HTTP Input
+  logstash:
+    image: docker.elastic.co/logstash/logstash:9.2.1
+    container_name: cernji-logstash
+    environment:
+      - "LS_JAVA_OPTS=-Xms512m -Xmx512m"
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+      - INDEX_PREFIX=cernji  # Change this per deployment (cernji, ddwl, etc.)
+    volumes:
+      - ./logstash.conf:/usr/share/logstash/pipeline/logstash.conf:ro
+    ports:
+      - "5001:5001"  # HTTP input for application logs
+      - "5044:5044"  # Beats input (if needed)
+    networks:
+      - elk
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    mem_limit: 1g
+    cpus: 1
     restart: unless-stopped
 
   # APM Server - Application Performance Monitoring

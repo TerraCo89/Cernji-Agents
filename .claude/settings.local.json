@@ -64,7 +64,8 @@
       "Bash(uv python list:*)",
       "Bash(git branch:*)",
       "Bash(git log:*)",
-      "mcp__linear__get_issue"
+      "mcp__linear__get_issue",
+      "Bash(curl:*)"
     ],
     "deny": [],
     "ask": []
