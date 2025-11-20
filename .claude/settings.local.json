@@ -65,7 +65,9 @@
       "Bash(git branch:*)",
       "Bash(git log:*)",
       "mcp__linear__get_issue",
-      "Bash(curl:*)"
+      "Bash(curl:*)",
+      "SlashCommand(/research:*)",
+      "Skill(deep-researcher)"
     ],
     "deny": [],
     "ask": []

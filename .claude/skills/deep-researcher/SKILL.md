@@ -27,9 +27,128 @@ Use this skill when:
 
 ---
 
+## Knowledge Base Integration
+
+This skill automatically checks the Qdrant knowledge base before performing expensive web searches and stores new research findings for future reuse.
+
+### Research Metadata Schema
+
+Each research finding stored in Qdrant includes the following metadata:
+
+```json
+{
+  "type": "research_finding",
+  "query": "original research query text",
+  "topic_tags": ["python", "retry-logic", "exponential-backoff"],
+  "confidence_score": 0.85,
+  "usage_count": 0,
+  "timestamp": "2025-11-20T10:30:00Z",
+  "sources": ["https://docs.python.org/...", "https://github.com/..."],
+  "avenues_count": 5,
+  "depth": "medium",
+  "avenue_name": "tenacity library approach"
+}
+```
+
+**Field Descriptions:**
+
+- **type**: Always `"research_finding"` to distinguish from other knowledge base entries
+- **query**: The original user research question (for traceability)
+- **topic_tags**: 3-5 extracted tags (language, framework, domain) for cross-research discovery
+- **confidence_score**: 0.0-1.0 rating of research quality and completeness
+- **usage_count**: Number of times this research has been referenced (starts at 0)
+- **timestamp**: ISO 8601 datetime when research was conducted
+- **sources**: Array of authoritative source URLs used in the research
+- **avenues_count**: Total number of investigation avenues in the full research
+- **depth**: Research depth level ("quick", "medium", "thorough")
+- **avenue_name**: Specific investigation avenue name (e.g., "Multer middleware approach")
+
+### Knowledge Base Behavior
+
+**Automatic Checking**: The skill automatically checks Qdrant before launching research agents (transparent to user).
+
+**Combined Evaluation**: Results are evaluated using:
+- **Similarity threshold**: >= 0.75 (75% semantic match)
+- **Recency threshold**: Within last 30 days
+
+**When KB results are sufficient**: Present cached research and ask if user wants fresh research.
+
+**When KB results are insufficient**: Proceed with full research workflow and store new findings.
+
+**Collection**: Uses the shared `resume-agent-chunks` Qdrant collection.
+
+---
+
 ## Research Workflow
 
-### Step 1: Decompose the Research Topic
+### Step 0: Check Knowledge Base
+
+**IMPORTANT**: Before launching expensive web research, ALWAYS check the Qdrant knowledge base for relevant past research.
+
+**Process:**
+
+1. **Query Qdrant for similar research:**
+   ```
+   Use mcp__qdrant-vectors__qdrant-find(
+       query="<user's research question>"
+   )
+   ```
+
+2. **Evaluate results using combined criteria:**
+
+   For each result, check:
+   - **Similarity score**: Is it >= 0.75 (75% semantic match)?
+   - **Recency**: Is timestamp within last 30 days?
+   - **Metadata match**: Do topic_tags align with the current query?
+
+3. **Decision logic:**
+
+   **Case A: Strong match found** (score >= 0.75 AND age <= 30 days)
+   - Present cached research to user
+   - Show: avenue findings, code examples, sources
+   - Increment `usage_count` in metadata (see Step 5 for implementation)
+   - Ask: "I found relevant research from [X days ago]. Would you like me to:
+     - Use this cached research (instant)
+     - Conduct fresh research (may find newer information)"
+   - If user chooses cached: Skip to Step 5 (presentation)
+   - If user chooses fresh: Continue to Step 1
+
+   **Case B: Weak or no match** (score < 0.75 OR age > 30 days OR no results)
+   - Inform user: "No recent research found for this topic. Conducting fresh research..."
+   - Continue to Step 1 (Decompose)
+
+4. **Handle multiple matches:**
+   - If multiple results meet criteria (>= 0.75, <= 30 days), choose highest score
+   - If scores are similar (within 0.05), prefer more recent research
+   - If research covers different avenues, consider combining insights
+
+**Example:**
+
+```markdown
+User query: "Research retry logic with exponential backoff in Python"
+
+Qdrant results:
+1. Score: 0.82, Age: 15 days, Tags: ["python", "retry-logic", "exponential-backoff"]
+   → Strong match! Present to user
+
+2. Score: 0.68, Age: 10 days, Tags: ["python", "error-handling"]
+   → Weak match (score too low), proceed with fresh research
+
+3. Score: 0.85, Age: 45 days, Tags: ["python", "retry-logic", "tenacity"]
+   → Outdated (>30 days), proceed with fresh research
+```
+
+**When to skip KB check:**
+- Never skip automatically
+- User must explicitly request `/research --skip-kb` (future enhancement)
+
+**Troubleshooting:**
+
+- **Qdrant connection error**: Log warning, continue to Step 1 (graceful degradation)
+- **Empty collection**: Continue to Step 1, this is first research
+- **Timeout**: After 5 seconds, continue to Step 1
+
+### Step 2: Decompose the Research Topic
 
 Analyze the user's research question and break it into 3-10 specific investigation avenues. Each avenue should represent a distinct approach, perspective, or potential solution.
 
@@ -79,7 +198,7 @@ Use 3-10 avenues based on:
 
 **See:** `references/decomposition-patterns.md` for detailed examples by topic type
 
-### Step 2: Launch Parallel Research Agents
+### Step 3: Launch Parallel Research Agents
 
 For each research avenue, launch a specialized research agent using the Task tool with `subagent_type: "general-purpose"`.
 
@@ -156,7 +275,7 @@ I'm launching 3 parallel research agents to investigate different file upload ap
 [Task tool call 3 - Formidable research]
 ```
 
-### Step 3: Synthesize Research Findings
+### Step 4: Synthesize Research Findings
 
 Once all agents complete, synthesize their findings into a cohesive research report.
 
@@ -212,7 +331,155 @@ Once all agents complete, synthesize their findings into a cohesive research rep
 
 **See:** `assets/solution-template.md` for the complete markdown template
 
-### Step 4: Present Results
+### Step 5: Store Research Findings
+
+**IMPORTANT**: After synthesizing research, ALWAYS store findings in Qdrant for future reuse.
+
+**Storage Strategy:**
+
+Store each investigation avenue separately plus a summary entry. This enables:
+- Granular retrieval (find specific approaches)
+- Cross-research discovery (link related topics)
+- Usage tracking (identify valuable patterns)
+
+**For each investigation avenue:**
+
+```python
+# Extract topic tags from the research question and avenue
+topic_tags = extract_topic_tags(
+    query="<user's research question>",
+    avenue="<avenue name>"
+)
+
+# Calculate confidence score based on:
+# - Number of authoritative sources (0-5 sources = 0.0-0.5)
+# - Code example completeness (has working code = +0.2)
+# - Source diversity (multiple source types = +0.15)
+# - Recency of sources (all sources < 1 year old = +0.15)
+confidence_score = calculate_confidence(
+    sources=avenue_sources,
+    has_code=True/False,
+    source_diversity=["docs", "github", "blog"]
+)
+
+# Store in Qdrant
+mcp__qdrant-vectors__qdrant-store(
+    information=f"""
+# {avenue_name}
+
+## Description
+{avenue_description}
+
+## Code Example
+{code_example}
+
+## Sources
+{formatted_sources}
+
+## Evaluation
+{pros_cons_assessment}
+""",
+    metadata=json.dumps({
+        "type": "research_finding",
+        "query": original_user_query,
+        "topic_tags": topic_tags,
+        "confidence_score": confidence_score,
+        "usage_count": 0,
+        "timestamp": datetime.now().isoformat(),
+        "sources": source_urls,
+        "avenues_count": total_avenues,
+        "depth": depth_level,
+        "avenue_name": avenue_name
+    })
+)
+```
+
+**For the synthesis summary:**
+
+```python
+# Store high-level summary with higher confidence
+mcp__qdrant-vectors__qdrant-store(
+    information=f"""
+# Research Summary: {original_query}
+
+{synthesis_overview}
+
+## Recommendations
+{recommendations}
+
+## All Avenues Investigated
+{list_of_all_avenues}
+""",
+    metadata=json.dumps({
+        "type": "research_finding",
+        "query": original_user_query,
+        "topic_tags": topic_tags,
+        "confidence_score": 0.95,  # Summary has highest confidence
+        "usage_count": 0,
+        "timestamp": datetime.now().isoformat(),
+        "sources": all_unique_sources,
+        "avenues_count": total_avenues,
+        "depth": depth_level,
+        "avenue_name": "synthesis_summary"
+    })
+)
+```
+
+**Topic Tag Extraction** (see detailed logic below):
+
+Extract 3-5 tags covering:
+1. **Programming language**: python, typescript, javascript, go, rust, etc.
+2. **Framework/library**: fastapi, react, django, express, spring, etc.
+3. **Domain/pattern**: authentication, retry-logic, file-upload, websockets, etc.
+4. **Technology type**: api, database, caching, messaging, etc.
+
+Example: "Research retry logic with exponential backoff in Python"
+→ Tags: `["python", "retry-logic", "exponential-backoff", "error-handling", "resilience"]`
+
+**Confidence Score Calculation:**
+
+Base score starts at 0.5, then:
+- +0.1 per authoritative source (max 0.5 for 5+ sources)
+- +0.2 if has complete, runnable code example
+- +0.15 if sources are diverse (docs + github + blog)
+- +0.15 if all sources are recent (< 1 year old)
+- Max score: 1.0
+
+Example:
+- 5 sources (official docs, 2 GitHub repos, 1 blog, 1 Stack Overflow) = 0.5
+- Has complete code = +0.2
+- Diverse sources = +0.15
+- All recent = +0.15
+- **Total: 1.0**
+
+**Error Handling:**
+
+```python
+try:
+    # Store each avenue
+    for avenue in research_avenues:
+        mcp__qdrant-vectors__qdrant-store(...)
+
+    # Store synthesis summary
+    mcp__qdrant-vectors__qdrant-store(...)
+
+except Exception as e:
+    # Log error but don't fail the research workflow
+    print(f"Warning: Failed to store research in Qdrant: {e}")
+    print("Research will still be presented to user.")
+    # Continue to Step 6 (Present Results)
+```
+
+**Validation:**
+
+Before storing, verify:
+- Topic tags are not empty (fallback: extract from query if needed)
+- Confidence score is between 0.0 and 1.0
+- Timestamp is valid ISO 8601
+- Sources array is not empty
+- Avenue name is descriptive and unique
+
+### Step 6: Present Results
 
 Present the synthesized research report to the user with:
 - Clear section headings
@@ -263,6 +530,243 @@ Present the synthesized research report to the user with:
 2. **Complete code examples** - No pseudocode or partial snippets
 3. **Active source links** - Verify URLs are accessible
 4. **Clear recommendations** - Help user make informed decisions
+
+## Knowledge Base Implementation
+
+### Topic Tag Extraction Logic
+
+**Purpose**: Extract 3-5 meaningful tags from research query and avenue to enable cross-research discovery.
+
+**Extraction Strategy**:
+
+1. **Analyze the query and avenue name** for key terms
+2. **Categorize terms** into: language, framework, domain, technology
+3. **Normalize** to lowercase, hyphenated format (e.g., "retry-logic")
+4. **Limit** to 3-5 most relevant tags
+
+**Implementation Pattern**:
+
+```python
+def extract_topic_tags(query: str, avenue: str = "") -> list[str]:
+    """
+    Extract 3-5 topic tags from research query and avenue.
+
+    Returns tags in order of specificity:
+    1. Programming language
+    2. Framework/library
+    3. Domain/pattern (most specific first)
+    """
+    tags = []
+    combined_text = f"{query} {avenue}".lower()
+
+    # 1. Extract programming language
+    languages = {
+        "python": ["python", "py", "django", "flask", "fastapi"],
+        "javascript": ["javascript", "js", "node", "nodejs"],
+        "typescript": ["typescript", "ts"],
+        "go": ["golang", "go"],
+        "rust": ["rust"],
+        "java": ["java", "spring"],
+        "csharp": ["c#", "csharp", ".net", "dotnet"],
+        "ruby": ["ruby", "rails"],
+        "php": ["php", "laravel"]
+    }
+
+    for lang, indicators in languages.items():
+        if any(indicator in combined_text for indicator in indicators):
+            tags.append(lang)
+            break
+
+    # 2. Extract framework/library (specific names)
+    frameworks = [
+        "fastapi", "django", "flask", "express", "react", "vue",
+        "angular", "nextjs", "spring", "laravel", "rails",
+        "tenacity", "backoff", "celery", "multer", "busboy"
+    ]
+
+    for framework in frameworks:
+        if framework in combined_text:
+            tags.append(framework)
+
+    # 3. Extract domain/pattern keywords (2-3 tags max)
+    domain_patterns = {
+        "retry-logic": ["retry", "retries", "retrying"],
+        "exponential-backoff": ["exponential backoff", "backoff"],
+        "authentication": ["auth", "authentication", "login"],
+        "authorization": ["authorization", "permissions", "rbac"],
+        "file-upload": ["file upload", "upload", "multipart"],
+        "websockets": ["websocket", "ws", "real-time"],
+        "error-handling": ["error handling", "exception"],
+        "testing": ["test", "testing", "unittest", "pytest"],
+        "api": ["api", "rest", "graphql"],
+        "database": ["database", "db", "sql", "postgres", "mongodb"],
+        "caching": ["cache", "caching", "redis"],
+        "security": ["security", "xss", "csrf", "injection"],
+        "performance": ["performance", "optimization", "speed"]
+    }
+
+    for pattern, indicators in domain_patterns.items():
+        if any(indicator in combined_text for indicator in indicators):
+            tags.append(pattern)
+            if len(tags) >= 5:
+                break
+
+    # 4. Ensure 3-5 tags (extract from query words if needed)
+    if len(tags) < 3:
+        # Fallback: extract significant words from query
+        import re
+        words = re.findall(r'\b[a-z]{4,}\b', combined_text)
+        for word in words:
+            if word not in tags and word not in ['with', 'using', 'implement', 'research']:
+                tags.append(word)
+                if len(tags) >= 3:
+                    break
+
+    # Limit to 5 tags
+    return tags[:5]
+```
+
+**Example Extractions**:
+
+| Query | Avenue | Tags |
+|-------|--------|------|
+| "Research retry logic with exponential backoff in Python" | "tenacity library" | `["python", "tenacity", "retry-logic", "exponential-backoff", "error-handling"]` |
+| "File upload handling in Node.js" | "Multer middleware" | `["javascript", "multer", "file-upload", "api"]` |
+| "Authentication patterns in FastAPI" | "OAuth2 implementation" | `["python", "fastapi", "authentication", "api"]` |
+
+### Usage Tracking Implementation
+
+**Purpose**: Track how often research findings are reused to identify valuable patterns.
+
+**When to increment `usage_count`**:
+
+1. When KB cache hit occurs (Step 0) and user chooses to use cached research
+2. When KB results are shown to user (even if they choose fresh research)
+
+**Implementation Pattern**:
+
+```python
+def increment_usage_count(qdrant_point_id: str):
+    """
+    Increment usage_count for a research finding.
+
+    Note: Qdrant MCP server doesn't directly support metadata updates,
+    so we need to re-store the point with updated metadata.
+
+    Workaround:
+    1. Retrieve current point data
+    2. Parse metadata, increment usage_count
+    3. Re-store with same point ID
+    """
+
+    # Step 0: Query to get current data
+    results = mcp__qdrant-vectors__qdrant-find(
+        query=original_query  # Use same query to find the point
+    )
+
+    # Find the specific point we want to update
+    for result in results:
+        if result["id"] == qdrant_point_id:
+            # Parse current metadata
+            import json
+            metadata = json.loads(result["metadata"])
+
+            # Increment usage count
+            metadata["usage_count"] = metadata.get("usage_count", 0) + 1
+
+            # Re-store with updated metadata
+            mcp__qdrant-vectors__qdrant-store(
+                information=result["content"],  # Same content
+                metadata=json.dumps(metadata)   # Updated metadata
+            )
+
+            print(f"✓ Updated usage_count to {metadata['usage_count']}")
+            break
+```
+
+**Alternative: Manual Tracking**:
+
+If Qdrant MCP server doesn't support point updates, track usage in a separate SQLite database:
+
+```python
+# Track in local SQLite
+import sqlite3
+conn = sqlite3.connect("data/research-usage.db")
+cursor = conn.cursor()
+
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS research_usage (
+    query_hash TEXT PRIMARY KEY,
+    query TEXT,
+    usage_count INTEGER DEFAULT 1,
+    last_used TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+)
+""")
+
+# Increment usage
+cursor.execute("""
+INSERT INTO research_usage (query_hash, query, usage_count)
+VALUES (?, ?, 1)
+ON CONFLICT(query_hash) DO UPDATE SET
+    usage_count = usage_count + 1,
+    last_used = CURRENT_TIMESTAMP
+""", (hash(query), query))
+
+conn.commit()
+```
+
+**Usage Analytics**:
+
+Track these metrics:
+- **Most researched topics** (highest usage_count)
+- **Average reuse rate** (KB hits / total research queries)
+- **Staleness** (time since last usage)
+- **Research ROI** (avenues_count × usage_count)
+
+**Example Output**:
+
+```
+Research Knowledge Base Stats:
+- Total research entries: 147
+- Cache hit rate: 62% (saved 93 web searches)
+- Most reused topics:
+  1. "Python retry logic" - 12 uses
+  2. "FastAPI authentication" - 9 uses
+  3. "React state management" - 7 uses
+```
+
+### Confidence Score Guidelines
+
+**High Confidence (0.8-1.0)**:
+- 5+ authoritative sources
+- Complete, tested code examples
+- Official documentation + production examples
+- All sources < 6 months old
+
+**Medium Confidence (0.6-0.79)**:
+- 3-4 good sources
+- Working code examples
+- Mix of official + community sources
+- Sources < 1 year old
+
+**Low Confidence (0.4-0.59)**:
+- 1-2 sources
+- Partial code examples
+- Mostly community sources
+- Some sources > 1 year old
+
+**Very Low (<0.4)**:
+- Single source
+- No code examples
+- Questionable source quality
+- Outdated information
+
+**Usage**:
+
+Filter KB results by confidence when retrieving:
+- For production decisions: Only show results with confidence >= 0.7
+- For exploration: Show all results, but warn on low confidence
+- For learning: Show all results with confidence scores displayed
 
 ## Common Research Patterns
 
@@ -318,7 +822,19 @@ Present the synthesized research report to the user with:
 
 **User request:** "Research how to implement retry logic with exponential backoff in Python"
 
-**Step 1 - Decompose:**
+**Step 0 - Check Knowledge Base:**
+```
+Checking Qdrant for existing research on "retry logic with exponential backoff in Python"...
+
+Found 1 result:
+- Score: 0.68 (below 0.75 threshold)
+- Age: 12 days
+- Tags: ["python", "error-handling", "resilience"]
+
+→ Weak match. Proceeding with fresh research.
+```
+
+**Step 2 - Decompose:**
 1. Built-in library approach (`time.sleep` + manual implementation)
 2. `tenacity` library (declarative retry)
 3. `backoff` library (lightweight)
@@ -327,7 +843,9 @@ Present the synthesized research report to the user with:
 6. Custom implementation with jitter
 7. Testing retry logic
 
-**Step 2 - Launch (single message with 7 Task calls):**
+Extracted tags: `["python", "retry-logic", "exponential-backoff", "error-handling", "resilience"]`
+
+**Step 3 - Launch (single message with 7 Task calls):**
 ```
 Launching 7 parallel research agents to investigate Python retry strategies:
 
@@ -340,17 +858,72 @@ Launching 7 parallel research agents to investigate Python retry strategies:
 [Task 7: testing strategies]
 ```
 
-**Step 3 - Synthesize:**
+**Step 4 - Synthesize:**
 - Compare approaches
 - Evaluate trade-offs (complexity vs features)
 - Note when to use each
 - Provide recommendations
 
-**Step 4 - Present:**
+**Step 5 - Store in Qdrant:**
+```
+Storing 7 avenue findings + 1 synthesis summary in Qdrant...
+
+Avenue 1: "tenacity library"
+- Confidence: 0.92 (5 sources, complete code, diverse sources)
+- Tags: ["python", "tenacity", "retry-logic", "exponential-backoff", "error-handling"]
+✓ Stored
+
+Avenue 2: "backoff library"
+- Confidence: 0.85 (4 sources, complete code)
+- Tags: ["python", "backoff", "retry-logic", "exponential-backoff"]
+✓ Stored
+
+... (5 more avenues)
+
+Synthesis Summary:
+- Confidence: 0.95 (comprehensive overview)
+- Tags: ["python", "retry-logic", "exponential-backoff", "error-handling", "resilience"]
+✓ Stored
+
+Total: 8 entries added to knowledge base
+```
+
+**Step 6 - Present:**
 - Formatted markdown report
 - Working code examples for each approach
 - Source links
 - "Best for most cases: `tenacity`" recommendation
+
+---
+
+**Example: KB Cache Hit**
+
+**User request:** "How do I implement retry logic in Python?"
+
+**Step 0 - Check Knowledge Base:**
+```
+Checking Qdrant for existing research on "implement retry logic in Python"...
+
+Found strong match:
+- Score: 0.82 (above 0.75 threshold)
+- Age: 3 days (within 30 day threshold)
+- Tags: ["python", "retry-logic", "exponential-backoff", "error-handling"]
+- Confidence: 0.95
+- Avenues researched: 7
+
+I found relevant research from 3 days ago covering 7 different approaches to Python retry logic.
+
+Would you like me to:
+A) Use this cached research (instant)
+B) Conduct fresh research (may find newer information)
+
+→ User chooses A
+
+Incrementing usage_count (now 2)...
+Presenting cached research...
+```
+
+Result: Saved ~10 minutes of agent research time!
 
 ## Troubleshooting
 
@@ -369,14 +942,30 @@ Launching 7 parallel research agents to investigate Python retry strategies:
 **Issue: Missing sources**
 - **Solution:** Re-prompt agent to provide specific URLs for claims made
 
+**Issue: Qdrant connection error**
+- **Solution:** Verify Qdrant Docker container is running (`docker ps`), gracefully degrade to regular research workflow
+
+**Issue: KB results seem outdated**
+- **Solution:** Check recency threshold (30 days default), consider lowering confidence requirement or conducting fresh research
+
+**Issue: Too many KB matches**
+- **Solution:** Choose highest scoring match, or combine insights from multiple matches if they cover different aspects
+
+**Issue: Failed to store research in Qdrant**
+- **Solution:** Check Qdrant connection, verify metadata format, continue with presentation (storage is non-critical)
+
 ## Quick Start
 
-1. **Analyze user's research question**
-2. **Decompose into 3-10 specific avenues**
-3. **Launch parallel agents** (single message, multiple Task calls)
-4. **Wait for all agents to complete**
-5. **Synthesize findings** with comparisons and recommendations
-6. **Present formatted report** using solution template
+1. **Check Qdrant knowledge base** for existing research (mcp__qdrant-vectors__qdrant-find)
+2. **Evaluate results**: score >= 0.75 AND age <= 30 days?
+   - Yes: Present cached research, ask user if they want fresh research
+   - No: Continue to step 3
+3. **Decompose into 3-10 specific avenues** with topic tag extraction
+4. **Launch parallel agents** (single message, multiple Task calls)
+5. **Wait for all agents to complete**
+6. **Synthesize findings** with comparisons and recommendations
+7. **Store in Qdrant** (each avenue + synthesis summary with metadata)
+8. **Present formatted report** using solution template
 
 ## Support
 

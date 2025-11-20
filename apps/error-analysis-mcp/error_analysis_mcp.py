@@ -21,10 +21,21 @@ Architecture:
 - Used by Error Analysis & Prevention Agent
 
 Usage:
+    # For Claude Desktop (stdio, no auth)
     uv run apps/error-analysis-mcp/error_analysis_mcp.py
+
+    # For N8N / HTTP clients (streamable-http, no auth)
+    uv run apps/error-analysis-mcp/error_analysis_mcp.py --transport streamable-http --port 8080
+
+    # With authentication enabled
+    export MCP_REQUIRE_AUTH=true
+    export MCP_AUTH_TOKEN=your-secret-token-here
+    uv run apps/error-analysis-mcp/error_analysis_mcp.py --transport streamable-http --port 8080
 
 Configuration:
     ELASTICSEARCH_URL: Elasticsearch endpoint (default: http://localhost:9200)
+    MCP_REQUIRE_AUTH: Enable authentication (true/false, default: false)
+    MCP_AUTH_TOKEN: Bearer token for authentication (required if MCP_REQUIRE_AUTH=true)
 """
 
 import os
@@ -37,6 +48,12 @@ import httpx
 from fastmcp import FastMCP
 from dotenv import load_dotenv
 
+
+# Custom exception for authentication errors
+class AuthenticationError(Exception):
+    """Raised when authentication fails."""
+    pass
+
 # Load environment variables
 load_dotenv()
 
@@ -44,11 +61,132 @@ load_dotenv()
 ELASTICSEARCH_URL = os.getenv("ELASTICSEARCH_URL", "http://localhost:9200")
 INDEX_PATTERN = "logs-*"  # Search across all log indices
 
+# Authentication Configuration
+MCP_AUTH_TOKEN = os.getenv("MCP_AUTH_TOKEN")  # Bearer token for authentication
+REQUIRE_AUTH = os.getenv("MCP_REQUIRE_AUTH", "false").lower() == "true"
+
 # Initialize MCP server
 mcp = FastMCP(
     name="error-analysis",
     instructions="Elasticsearch integration for error analysis and pattern detection"
 )
+
+# ============================================================================
+# N8N Compatibility Middleware
+# ============================================================================
+
+@mcp.add_middleware
+async def filter_n8n_metadata(request, call_next):
+    """
+    Strip N8N-specific metadata from tool calls.
+
+    N8N MCP Client node (v1.118.2+) incorrectly includes protocol metadata
+    (toolCallId, __fromNode) as tool parameters, causing Pydantic validation
+    errors. This middleware removes known metadata fields.
+
+    Reference: https://community.n8n.io/t/mcp-client-node-now-includes-toolcallid-in-tool-calls-bug/219307
+    Linear Issue: DEV-249
+    """
+    if request.method == "POST" and request.url.path.endswith("/mcp"):
+        try:
+            body = await request.json()
+
+            # Filter tools/call requests
+            if body.get("method") == "tools/call":
+                params = body.get("params", {})
+                arguments = params.get("arguments", {})
+
+                # Strip known N8N metadata fields
+                n8n_metadata = ["toolCallId", "__fromNode", "__outputIndex"]
+                for field in n8n_metadata:
+                    arguments.pop(field, None)
+
+                # Update request body
+                params["arguments"] = arguments
+                body["params"] = params
+
+                # Reconstruct request with cleaned body
+                from starlette.requests import Request
+                scope = request.scope.copy()
+                scope["body"] = json.dumps(body).encode()
+                request = Request(scope)
+
+        except Exception:
+            # If filtering fails, pass through unchanged
+            # (better to fail with original error than break middleware)
+            pass
+
+    response = await call_next(request)
+    return response
+
+
+# ============================================================================
+# Authentication Middleware
+# ============================================================================
+
+def authenticate_request(headers: dict) -> bool:
+    """
+    Validate Bearer token authentication.
+
+    Args:
+        headers: Request headers dictionary
+
+    Returns:
+        True if authenticated, False otherwise
+
+    Raises:
+        AuthenticationError: If authentication fails when required
+    """
+    if not REQUIRE_AUTH:
+        return True  # Authentication disabled
+
+    if not MCP_AUTH_TOKEN:
+        # Auth required but no token configured
+        raise AuthenticationError("Server misconfigured: MCP_AUTH_TOKEN not set")
+
+    # Get Authorization header
+    auth_header = headers.get("authorization", "")
+
+    if not auth_header:
+        raise AuthenticationError("Missing Authorization header")
+
+    # Check Bearer token format
+    if not auth_header.startswith("Bearer "):
+        raise AuthenticationError("Invalid Authorization header format. Expected: Bearer <token>")
+
+    # Extract and validate token
+    provided_token = auth_header[7:]  # Remove "Bearer " prefix
+
+    if provided_token != MCP_AUTH_TOKEN:
+        raise AuthenticationError("Invalid authentication token")
+
+    return True
+
+
+@mcp.add_middleware
+async def auth_middleware(request, call_next):
+    """Authentication middleware for HTTP requests."""
+    if REQUIRE_AUTH and request.url.path == "/mcp":
+        # Extract headers from request
+        headers = {key.lower(): value for key, value in request.headers.items()}
+        try:
+            authenticate_request(headers)
+        except AuthenticationError as e:
+            from starlette.responses import JSONResponse
+            return JSONResponse(
+                status_code=401,
+                content={
+                    "jsonrpc": "2.0",
+                    "error": {
+                        "code": -32000,
+                        "message": str(e)
+                    },
+                    "id": None
+                }
+            )
+
+    response = await call_next(request)
+    return response
 
 
 # ============================================================================
@@ -132,7 +270,8 @@ async def search_errors(
     time_range: str = "1h",
     service: Optional[str] = None,
     log_level: Literal["error", "warn", "info", "debug", "all"] = "error",
-    max_results: int = 100
+    max_results: int = 100,
+    toolCallId: Optional[str] = None  # N8N compatibility: accept but ignore toolCallId
 ) -> dict:
     """
     Search for errors in Elasticsearch logs.
@@ -211,7 +350,8 @@ async def get_error_patterns(
     time_range: str = "24h",
     service: Optional[str] = None,
     min_occurrences: int = 2,
-    max_patterns: int = 20
+    max_patterns: int = 20,
+    toolCallId: Optional[str] = None  # N8N compatibility: accept but ignore toolCallId
 ) -> dict:
     """
     Detect recurring error patterns by aggregating similar error messages.
@@ -326,7 +466,8 @@ async def get_error_patterns(
 @mcp.tool()
 async def get_error_context(
     trace_id: str,
-    include_related: bool = True
+    include_related: bool = True,
+    toolCallId: Optional[str] = None  # N8N compatibility: accept but ignore toolCallId
 ) -> dict:
     """
     Get full context for an error using its trace ID (correlation ID).
@@ -411,7 +552,8 @@ async def get_error_context(
 async def analyze_error_trend(
     service: str,
     time_range: str = "24h",
-    interval: Literal["1m", "5m", "15m", "1h", "1d"] = "1h"
+    interval: Literal["1m", "5m", "15m", "1h", "1d"] = "1h",
+    toolCallId: Optional[str] = None  # N8N compatibility: accept but ignore toolCallId
 ) -> dict:
     """
     Analyze error rate trends over time for a service.
@@ -515,7 +657,8 @@ async def analyze_error_trend(
 @mcp.tool()
 async def compare_errors(
     trace_id_1: str,
-    trace_id_2: str
+    trace_id_2: str,
+    toolCallId: Optional[str] = None  # N8N compatibility: accept but ignore toolCallId
 ) -> dict:
     """
     Compare two errors to find similarities and differences.
@@ -626,5 +769,51 @@ async def health_check() -> dict:
 # ============================================================================
 
 if __name__ == "__main__":
-    # Run the MCP server
-    mcp.run()
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Error Analysis MCP Server")
+    parser.add_argument(
+        "--transport",
+        choices=["stdio", "streamable-http"],
+        default="stdio",
+        help="Transport protocol (default: stdio for Claude Desktop, use streamable-http for N8N)"
+    )
+    parser.add_argument(
+        "--host",
+        default="127.0.0.1",
+        help="Host for HTTP server (default: 127.0.0.1)"
+    )
+    parser.add_argument(
+        "--port",
+        type=int,
+        default=8080,
+        help="Port for HTTP server (default: 8080)"
+    )
+
+    args = parser.parse_args()
+
+    print(f"Starting Error Analysis MCP Server")
+    print(f"Transport: {args.transport}")
+
+    if args.transport == "streamable-http":
+        print(f"HTTP Server: http://{args.host}:{args.port}/mcp")
+
+        # Show authentication status
+        if REQUIRE_AUTH:
+            if MCP_AUTH_TOKEN:
+                print(f"Authentication: ENABLED (Bearer token required)")
+            else:
+                print(f"WARNING: Authentication required but MCP_AUTH_TOKEN not set!")
+        else:
+            print(f"Authentication: DISABLED (development mode)")
+
+        print(f"N8N Connection URL: http://{args.host}:{args.port}/mcp")
+
+        if REQUIRE_AUTH and MCP_AUTH_TOKEN:
+            print(f"N8N Authorization Header: Bearer {MCP_AUTH_TOKEN[:8]}...{MCP_AUTH_TOKEN[-8:]}")
+
+        mcp.run(transport=args.transport, host=args.host, port=args.port)
+    else:
+        print("STDIO mode for Claude Desktop")
+        print("Authentication: N/A (stdio transport)")
+        mcp.run(transport=args.transport)
